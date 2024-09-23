@@ -30,7 +30,7 @@ class Mapping:
             pts_3d = np.array([self._global_3d_pts[m.queryIdx] for m in matches])
             pts_2d_curr = np.array([new_frame_details.key_points[m.trainIdx].pt for m in matches], dtype=np.float64)
             
-            ret = self._localize_PnP(new_frame_details, pts_3d, pts_2d_curr)
+            ret = self._localize_with_PnP(new_frame_details, pts_3d, pts_2d_curr)
             if not ret:
                 return None
             
@@ -40,7 +40,6 @@ class Mapping:
             
             return new_frame_details
             
-        
         elif len(self._all_frames) == 1:
             # Find feature matches between first and current frames
             first_frame_details = self._all_frames[-1]
@@ -49,14 +48,7 @@ class Mapping:
                 print("not enough matches!")
                 return None
             
-            pts_2d_first, pts_2d_curr = self._get_matched_points(first_frame_details.key_points, new_frame_details.key_points, matches)
-
-            # Estimate the essential matrix using RANSAC and recover pose
-            E, matches = self._find_essntial(pts_2d_first, pts_2d_curr, matches)
-            
-            pts_2d_first, pts_2d_curr = self._get_matched_points(first_frame_details.key_points, new_frame_details.key_points, matches)
-
-            self._calcPosition(new_frame_details, E, pts_2d_first, pts_2d_curr)
+            pts_2d_first, pts_2d_curr, matches = self._localize_with_prev_frame(first_frame_details, new_frame_details, matches)
             
             ret = self._triangulate(first_frame_details.P, new_frame_details.P, pts_2d_first, pts_2d_curr, matches, des)
             
@@ -73,36 +65,7 @@ class Mapping:
             self._all_frames.append(new_frame_details)
             return new_frame_details
         
-    def _triangulate(self, P1, P2, pts_2d_1, pts_2d_2, matches, des):
-        try:
-            # Triangulate new 3D points using the projection matrices of the first and current frames
-            pts_4d_homogeneous = cv2.triangulatePoints(P1, P2, pts_2d_1.T, pts_2d_2.T)
-            
-            pts_3d = pts_4d_homogeneous[:3] / pts_4d_homogeneous[3]
-            des_3d = np.array([des[m.trainIdx] for m in matches])
-            
-            self._global_3d_pts = np.vstack((self._global_3d_pts, pts_3d.T))
-            self._global_3d_des = np.vstack((self._global_3d_des, des_3d))
-            
-            # print(f"num 3d pts: {self._global_3d_pts.shape}")
-            # print(f"num 3d des: {self._global_3d_des.shape}")
-            # print(f"3d des: \n{self._global_3d_des}")
-            
-        except:
-            print("error")
-            return False
-        return True
-        
-    def _calcPosition(self, frame_details : FrameDetails, E, pts_2d_1, pts_2d_2, normalization : bool = True):
-        _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
-        if normalization:
-            t = t / np.linalg.norm(t)
-
-        frame_details.R = R
-        frame_details.t = t
-        frame_details.P = self._K @ np.hstack((R, t))
-        
-    def _localize_PnP(self, new_frame_details, pts_3d, pts_2d_curr):
+    def _localize_with_PnP(self, pts_3d, frame_details_curr, pts_2d_curr):
         try:
             # Solve PnP to get rotation and translation
             success, rvec, t, _ = cv2.solvePnPRansac(
@@ -117,14 +80,31 @@ class Mapping:
         
         if success:
             R, _ = cv2.Rodrigues(rvec)
-            new_frame_details.R = R
-            new_frame_details.t = t
-            new_frame_details.P = self._K @ np.hstack((R, t))
+            frame_details_curr.R = R
+            frame_details_curr.t = t
+            frame_details_curr.P = self._K @ np.hstack((R, t))
             
             return True
         else:
             print("PnP failed!")
             return False
+        
+    def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails, matches):
+        pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
+        # Estimate the essential matrix using RANSAC and recover pose
+        E, matches = self._find_essntial(pts_2d_prev, pts_2d_curr, matches)
+        pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
+        self._calcPosition(frame_details_curr, E, pts_2d_prev, pts_2d_curr)
+        return pts_2d_prev, pts_2d_curr, matches
+        
+    def _calcPosition(self, frame_details : FrameDetails, E, pts_2d_1, pts_2d_2, normalization : bool = True):
+        _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
+        if normalization:
+            t = t / np.linalg.norm(t)
+
+        frame_details.R = R
+        frame_details.t = t
+        frame_details.P = self._K @ np.hstack((R, t))
         
     def _find_matches(self, dsc1 : np.ndarray, dsc2 : np.ndarray) -> np.ndarray:
         """
@@ -170,5 +150,25 @@ class Mapping:
         if mask is not None:
             matches = [match for match, accepted in zip(matches, mask) if accepted]
         return E, matches
+        
+    def _triangulate(self, P1, P2, pts_2d_1, pts_2d_2, matches, des):
+        try:
+            # Triangulate new 3D points using the projection matrices of the first and current frames
+            pts_4d_homogeneous = cv2.triangulatePoints(P1, P2, pts_2d_1.T, pts_2d_2.T)
+            
+            pts_3d = pts_4d_homogeneous[:3] / pts_4d_homogeneous[3]
+            des_3d = np.array([des[m.trainIdx] for m in matches])
+            
+            self._global_3d_pts = np.vstack((self._global_3d_pts, pts_3d.T))
+            self._global_3d_des = np.vstack((self._global_3d_des, des_3d))
+            
+            # print(f"num 3d pts: {self._global_3d_pts.shape}")
+            # print(f"num 3d des: {self._global_3d_des.shape}")
+            # print(f"3d des: \n{self._global_3d_des}")
+            
+        except:
+            print("error")
+            return False
+        return True
     
     
