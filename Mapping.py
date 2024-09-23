@@ -18,56 +18,76 @@ class Mapping:
     def process_frame(self, new_frame) -> FrameDetails:
         gray_new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2GRAY)
         kp, des = self._sift.detectAndCompute(gray_new_frame, None)
-        new_frame_details = FrameDetails(key_points=kp, descriptors=des)
-        
+        frame_details_curr = FrameDetails(key_points=kp, descriptors=des)
         
         if len(self._all_frames) > 1:
-            matches = self._find_matches(self._global_3d_des, new_frame_details.descriptors)
-            if len(matches) < 5:
-                print("not enough matches!")
+            P, R, t = self._localize_with_PnP(frame_details_curr)
+            
+            if P is None:
                 return None
+            print(f"R PnP: \n{R}")
             
-            pts_3d = np.array([self._global_3d_pts[m.queryIdx] for m in matches])
-            pts_2d_curr = np.array([new_frame_details.key_points[m.trainIdx].pt for m in matches], dtype=np.float64)
+            frame_details_curr.R = R
+            frame_details_curr.t = t
+            frame_details_curr.P = P
             
-            ret = self._localize_with_PnP(new_frame_details, pts_3d, pts_2d_curr)
-            if not ret:
-                return None
+            self._all_frames.append(frame_details_curr)
             
-            self._all_frames.append(new_frame_details)
-            self._matches = matches
-            
-            
-            return new_frame_details
+            frame_details_prev = self._all_frames[-1]
+            pts_2d_first, pts_2d_curr, matches_prev_curr, P, R, t = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
+            if matches_prev_curr is None: 
+                return frame_details_curr
+            print(f"R prev: \n{R}")
+            # ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
+            return frame_details_curr
             
         elif len(self._all_frames) == 1:
             # Find feature matches between first and current frames
-            first_frame_details = self._all_frames[-1]
-            matches = self._find_matches(first_frame_details.descriptors, new_frame_details.descriptors)
-            if len(matches) < 5:
-                print("not enough matches!")
+            frame_details_prev = self._all_frames[-1]
+            pts_2d_first, pts_2d_curr, matches_prev_curr, P, R, t = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
+            
+            if matches_prev_curr is None: 
                 return None
             
-            pts_2d_first, pts_2d_curr, matches = self._localize_with_prev_frame(first_frame_details, new_frame_details, matches)
+            frame_details_curr.R = R
+            frame_details_curr.t = t
+            frame_details_curr.P = P
             
-            ret = self._triangulate(first_frame_details.P, new_frame_details.P, pts_2d_first, pts_2d_curr, matches, des)
-            
+            ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
             if ret:
-                self._all_frames.append(new_frame_details)
-            self._matches = matches
-            
-            return new_frame_details
+                self._all_frames.append(frame_details_curr)
+            self._matches = matches_prev_curr
+            return frame_details_curr
 
         else:
-            new_frame_details.R = np.eye(3)
-            new_frame_details.t = np.zeros((3,1))
-            new_frame_details.P = np.hstack((self._K, np.zeros((3,1))))
-            self._all_frames.append(new_frame_details)
-            return new_frame_details
+            frame_details_curr.R = np.eye(3)
+            frame_details_curr.t = np.zeros((3,1))
+            frame_details_curr.P = np.hstack((self._K, np.zeros((3,1))))
+            self._all_frames.append(frame_details_curr)
+            return frame_details_curr
         
-    def _localize_with_PnP(self, pts_3d, frame_details_curr, pts_2d_curr):
+    def _localize_with_PnP(self, frame_details_curr : FrameDetails):
+        """
+        Solve PnP to get rotation and translation
+
+        Args:
+            pts_3d (_type_): _description_
+            frame_details_curr (_type_): _description_
+            pts_2d_curr (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        matches_3d_curr = self._find_matches(self._global_3d_des, frame_details_curr.descriptors)
+        
+        if len(matches_3d_curr) < 5:
+            print("not enough matches!")
+            return None, None, None
+        
+        pts_3d = np.array([self._global_3d_pts[m.queryIdx] for m in matches_3d_curr])
+        pts_2d_curr = np.array([frame_details_curr.key_points[m.trainIdx].pt for m in matches_3d_curr], dtype=np.float64)
+            
         try:
-            # Solve PnP to get rotation and translation
             success, rvec, t, _ = cv2.solvePnPRansac(
                 objectPoints=pts_3d, 
                 imagePoints=pts_2d_curr, 
@@ -76,35 +96,34 @@ class Mapping:
                 flags=cv2.SOLVEPNP_ITERATIVE)
         except:
             print("PnP error!")
-            return False
+            return None, None, None
         
         if success:
             R, _ = cv2.Rodrigues(rvec)
-            frame_details_curr.R = R
-            frame_details_curr.t = t
-            frame_details_curr.P = self._K @ np.hstack((R, t))
+            P = self._K @ np.hstack((R, t))
             
-            return True
+            return P, R, t
         else:
             print("PnP failed!")
-            return False
+            return None, None, None
         
-    def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails, matches):
+    def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails):
+        matches = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
+        if len(matches) < 5:
+            print("not enough matches!")
+            return None, None, None, None, None, None
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
-        # Estimate the essential matrix using RANSAC and recover pose
         E, matches = self._find_essntial(pts_2d_prev, pts_2d_curr, matches)
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
-        self._calcPosition(frame_details_curr, E, pts_2d_prev, pts_2d_curr)
-        return pts_2d_prev, pts_2d_curr, matches
+        P, R, t = self._calcPosition(frame_details_curr, E, pts_2d_prev, pts_2d_curr)
+        return pts_2d_prev, pts_2d_curr, matches, P, R, t
         
     def _calcPosition(self, frame_details : FrameDetails, E, pts_2d_1, pts_2d_2, normalization : bool = True):
         _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
         if normalization:
             t = t / np.linalg.norm(t)
-
-        frame_details.R = R
-        frame_details.t = t
-        frame_details.P = self._K @ np.hstack((R, t))
+        P = self._K @ np.hstack((R, t))
+        return P, R, t
         
     def _find_matches(self, dsc1 : np.ndarray, dsc2 : np.ndarray) -> np.ndarray:
         """
