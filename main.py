@@ -148,6 +148,7 @@ Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
 # drawMatches(images[0], images[1], frame_details0.key_points, frame_details1.key_points, mapping._matches, numDraw = 100)
 
 for i, image in enumerate(images):
+    print(i)
     frame_details = mapping.process_frame(image)
     # drawKeyPoints(image, frame_details.key_points)
     

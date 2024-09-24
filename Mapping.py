@@ -21,37 +21,55 @@ class Mapping:
         frame_details_curr = FrameDetails(key_points=kp, descriptors=des)
         
         if len(self._all_frames) > 1:
-            P, R, t = self._localize_with_PnP(frame_details_curr)
+            matches_3d = self._localize_with_PnP(frame_details_curr)
             
-            if P is None:
+            if matches_3d is None:
                 return None
-            print(f"R PnP: \n{R}")
             
-            frame_details_curr.R = R
-            frame_details_curr.t = t
-            frame_details_curr.P = P
+            # # order is yaw -> pitch -> roll
+            # yaw = np.arctan2(R[1,0], R[0,0])
+            # pitch = np.arcsin(-R[2,0])
+            # roll = np.arctan2(R[2,1], R[2,2])
             
-            self._all_frames.append(frame_details_curr)
+            # print(f"R PnP: \n{R}")
+            # print(f"PnP yaw: {yaw}, pitch: {pitch}, roll: {roll}")
+            
             
             frame_details_prev = self._all_frames[-1]
-            pts_2d_first, pts_2d_curr, matches_prev_curr, P, R, t = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
-            if matches_prev_curr is None: 
+            self._all_frames.append(frame_details_curr)
+            
+            ##### triangulate new points based on matches to prev frame: #####
+
+            # find matches between the frames.
+            matches_prev_curr = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
+            if len(matches_prev_curr) < 5:
                 return frame_details_curr
-            print(f"R prev: \n{R}")
-            # ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
+            pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
+
+            # filter matches that agree with the essential matrix.
+            # TODO: do it in a better way - we already know the essenial (through P) so no need to recalc it.
+            _, matches_prev_curr = self._find_essntial(pts_2d_prev, pts_2d_curr, matches_prev_curr)
+            
+            # filter matches between curr and prev frame, that refer to unknown 3d points.
+            new_kp_idxs = np.ones(len(kp), dtype=bool)
+            for global_match in matches_3d:
+                new_kp_idxs[global_match.trainIdx] = False
+            # matches between the previus and current frame, that refer to unknown 3d points.
+            new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
+
+            pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
+            
+            ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
+            
             return frame_details_curr
             
         elif len(self._all_frames) == 1:
             # Find feature matches between first and current frames
             frame_details_prev = self._all_frames[-1]
-            pts_2d_first, pts_2d_curr, matches_prev_curr, P, R, t = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
+            pts_2d_first, pts_2d_curr, matches_prev_curr = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
             
             if matches_prev_curr is None: 
                 return None
-            
-            frame_details_curr.R = R
-            frame_details_curr.t = t
-            frame_details_curr.P = P
             
             ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
             if ret:
@@ -82,7 +100,7 @@ class Mapping:
         
         if len(matches_3d_curr) < 5:
             print("not enough matches!")
-            return None, None, None
+            return None
         
         pts_3d = np.array([self._global_3d_pts[m.queryIdx] for m in matches_3d_curr])
         pts_2d_curr = np.array([frame_details_curr.key_points[m.trainIdx].pt for m in matches_3d_curr], dtype=np.float64)
@@ -94,29 +112,39 @@ class Mapping:
                 cameraMatrix=self._K, 
                 distCoeffs=self._distCoeffs,
                 flags=cv2.SOLVEPNP_ITERATIVE)
-        except:
-            print("PnP error!")
-            return None, None, None
+        except ValueError:
+            print(f"PnP error! {ValueError}")
+            return None
         
         if success:
             R, _ = cv2.Rodrigues(rvec)
             P = self._K @ np.hstack((R, t))
             
-            return P, R, t
+            frame_details_curr.R = R
+            frame_details_curr.t = t
+            frame_details_curr.P = P
+            
+            return matches_3d_curr
         else:
             print("PnP failed!")
-            return None, None, None
+            return None
         
     def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails):
         matches = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
         if len(matches) < 5:
             print("not enough matches!")
-            return None, None, None, None, None, None
+            return None, None, None
+        
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
         E, matches = self._find_essntial(pts_2d_prev, pts_2d_curr, matches)
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
         P, R, t = self._calcPosition(frame_details_curr, E, pts_2d_prev, pts_2d_curr)
-        return pts_2d_prev, pts_2d_curr, matches, P, R, t
+    
+        frame_details_curr.R = R
+        frame_details_curr.t = t
+        frame_details_curr.P = P
+            
+        return pts_2d_prev, pts_2d_curr, matches
         
     def _calcPosition(self, frame_details : FrameDetails, E, pts_2d_1, pts_2d_2, normalization : bool = True):
         _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
@@ -175,19 +203,44 @@ class Mapping:
             # Triangulate new 3D points using the projection matrices of the first and current frames
             pts_4d_homogeneous = cv2.triangulatePoints(P1, P2, pts_2d_1.T, pts_2d_2.T)
             
-            pts_3d = pts_4d_homogeneous[:3] / pts_4d_homogeneous[3]
+            pts_3d = (pts_4d_homogeneous[:3] / pts_4d_homogeneous[3]).T
             des_3d = np.array([des[m.trainIdx] for m in matches])
             
-            self._global_3d_pts = np.vstack((self._global_3d_pts, pts_3d.T))
+            good_pts_idxs = self._filter_points_by_distance(pts_3d, max_std=2)
+            
+            pts_3d = pts_3d[good_pts_idxs]
+            des_3d = des_3d[good_pts_idxs]
+            
+            self._global_3d_pts = np.vstack((self._global_3d_pts, pts_3d))
             self._global_3d_des = np.vstack((self._global_3d_des, des_3d))
             
             # print(f"num 3d pts: {self._global_3d_pts.shape}")
             # print(f"num 3d des: {self._global_3d_des.shape}")
             # print(f"3d des: \n{self._global_3d_des}")
             
-        except:
-            print("error")
+        except ValueError:
+            print(f"triangulation error: {ValueError}")
             return False
         return True
+    
+    def _filter_points_by_distance(self, points: np.ndarray, max_std: float = 2) -> np.ndarray:
+        """
+        Filters the points whose distance from the mean point is less than max_std standard deviations.
+        
+        Parameters:
+        points (np.ndarray): Array of shape (n, 3) representing n 3D points.
+        k (float): The number of standard deviations to use for filtering.
+        
+        Returns:
+        np.ndarray: Array of indices of the points that meet the condition.
+        """
+        mean_point = np.mean(points, axis=0)
+        print(mean_point.shape)
+        distances = np.linalg.norm(points - mean_point, axis=1)
+        print(distances.shape)
+        std_dev = np.std(distances)
+        print(std_dev.shape)
+        
+        return distances < (max_std * std_dev)
     
     
