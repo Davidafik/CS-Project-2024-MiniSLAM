@@ -6,6 +6,7 @@ from FrameDetails import FrameDetails
 class Mapping:
     def __init__(self, K, distCoeffs = None) -> None:
         self._K = K
+        self._K_inv = np.linalg.inv(K)
         self._distCoeffs = distCoeffs
         self._sift = cv2.SIFT_create()
         self._matcher = cv2.BFMatcher()
@@ -26,6 +27,9 @@ class Mapping:
             if matches_3d is None:
                 return None
             
+            frame_details_prev = self._all_frames[-1]
+            self._all_frames.append(frame_details_curr)
+            
             # # order is yaw -> pitch -> roll
             # yaw = np.arctan2(R[1,0], R[0,0])
             # pitch = np.arcsin(-R[2,0])
@@ -35,31 +39,29 @@ class Mapping:
             # print(f"PnP yaw: {yaw}, pitch: {pitch}, roll: {roll}")
             
             
-            frame_details_prev = self._all_frames[-1]
-            self._all_frames.append(frame_details_curr)
-            
             ##### triangulate new points based on matches to prev frame: #####
 
             # find matches between the frames.
             matches_prev_curr = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
-            if len(matches_prev_curr) < 5:
-                return frame_details_curr
             pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
 
             # filter matches that agree with the essential matrix.
-            # TODO: do it in a better way - we already know the essenial (through P) so no need to recalc it.
-            _, matches_prev_curr = self._find_essntial(pts_2d_prev, pts_2d_curr, matches_prev_curr)
+            E = self._essential_from_Rt(frame_details_prev, frame_details_curr)
+            mask = self._get_inliers_from_essential(pts_2d_prev, pts_2d_curr, E)
+            matches_prev_curr = [match for match, accepted in zip(matches_prev_curr, mask) if accepted]
             
             # filter matches between curr and prev frame, that refer to unknown 3d points.
             new_kp_idxs = np.ones(len(kp), dtype=bool)
             for global_match in matches_3d:
                 new_kp_idxs[global_match.trainIdx] = False
+                
             # matches between the previus and current frame, that refer to unknown 3d points.
             new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
-
-            pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
             
-            ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
+            # triangulate new points and add them to the 3d cloud.
+            if len(matches_prev_curr) > 5:
+                pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
+                self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
             
             return frame_details_curr
             
@@ -111,23 +113,25 @@ class Mapping:
                 imagePoints=pts_2d_curr, 
                 cameraMatrix=self._K, 
                 distCoeffs=self._distCoeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE)
+                flags=cv2.SOLVEPNP_ITERATIVE,
+                confidence=0.999, reprojectionError=0.5)
+            
         except ValueError:
             print(f"PnP error! {ValueError}")
             return None
         
-        if success:
-            R, _ = cv2.Rodrigues(rvec)
-            P = self._K @ np.hstack((R, t))
-            
-            frame_details_curr.R = R
-            frame_details_curr.t = t
-            frame_details_curr.P = P
-            
-            return matches_3d_curr
-        else:
+        if not success:
             print("PnP failed!")
             return None
+        
+        R, _ = cv2.Rodrigues(rvec)
+        P = self._K @ np.hstack((R, t))
+        
+        frame_details_curr.R = R
+        frame_details_curr.t = t
+        frame_details_curr.P = P
+        
+        return matches_3d_curr
         
     def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails):
         matches = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
@@ -138,7 +142,7 @@ class Mapping:
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
         E, matches = self._find_essntial(pts_2d_prev, pts_2d_curr, matches)
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
-        P, R, t = self._calcPosition(frame_details_curr, E, pts_2d_prev, pts_2d_curr)
+        P, R, t = self._calcPosition(E, pts_2d_prev, pts_2d_curr)
     
         frame_details_curr.R = R
         frame_details_curr.t = t
@@ -146,7 +150,7 @@ class Mapping:
             
         return pts_2d_prev, pts_2d_curr, matches
         
-    def _calcPosition(self, frame_details : FrameDetails, E, pts_2d_1, pts_2d_2, normalization : bool = True):
+    def _calcPosition(self, E, pts_2d_1, pts_2d_2, normalization : bool = True):
         _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
         if normalization:
             t = t / np.linalg.norm(t)
@@ -235,12 +239,48 @@ class Mapping:
         np.ndarray: Array of indices of the points that meet the condition.
         """
         mean_point = np.mean(points, axis=0)
-        print(mean_point.shape)
         distances = np.linalg.norm(points - mean_point, axis=1)
-        print(distances.shape)
         std_dev = np.std(distances)
-        print(std_dev.shape)
         
         return distances < (max_std * std_dev)
     
+    def _essential_from_Rt(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails):
+        """
+        Computes the essential matrix from frame 1 to frame 2.
+
+        Parameters:
+        R1 (np.ndarray): Rotation matrix of frame 1 (3x3).
+        t1 (np.ndarray): Translation vector of frame 1 (3x1).
+        R2 (np.ndarray): Rotation matrix of frame 2 (3x3).
+        t2 (np.ndarray): Translation vector of frame 2 (3x1).
+
+        Returns:
+        E (np.ndarray): Essential matrix (3x3).
+        """
+        R1, t1 = frame_details_prev.R, frame_details_prev.t
+        R2, t2 = frame_details_curr.R, frame_details_curr.t
+        # Compute the relative rotation
+        R_rel = R2 @ R1.T
+
+        # Compute the relative translation
+        t_rel = (t2 - R2 @ R1.T @ t1).reshape(3)
+
+        # Compute the skew-symmetric matrix [t_rel]_x
+        t_x = np.array([[0, -t_rel[2], t_rel[1]],
+                        [t_rel[2], 0, -t_rel[0]],
+                        [-t_rel[1], t_rel[0], 0]])
+
+        # Compute the essential matrix: E = [t_rel]_x * R_rel
+        E = t_x @ R_rel
+
+        return E
     
+    def _get_inliers_from_essential(self, pts1, pts2, E, threshold=1e-2):
+        F = self._K_inv.T @ E @ self._K_inv
+        
+        pts1 = np.hstack((pts1, np.ones((len(pts1), 1))))
+        pts2 = np.hstack((pts2, np.ones((len(pts2), 1))))
+
+        epipolar_constraint = np.abs(np.sum(pts2.T * (F @ pts1.T), axis=0))
+        
+        return epipolar_constraint < threshold

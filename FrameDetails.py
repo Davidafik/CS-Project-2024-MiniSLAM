@@ -8,4 +8,3 @@ class FrameDetails:
         self.R = R
         self.t = t
         self.P = P
-        self.map_2d_to_3d = defaultdict(lambda: None)

@@ -145,15 +145,16 @@ Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
 
 # frame_details0 = mapping.process_frame(images[0])
 # frame_details1 = mapping.process_frame(images[1])
-# drawMatches(images[0], images[1], frame_details0.key_points, frame_details1.key_points, mapping._matches, numDraw = 100)
+# drawMatches(images[0], images[1], frame_details0.key_points, frame_details1.key_points, mapping._matches, numDraw = 1000)
 
 for i, image in enumerate(images):
-    print(i)
+    # print(i)
     frame_details = mapping.process_frame(image)
     # drawKeyPoints(image, frame_details.key_points)
-    
+    if frame_details is None:
+        continue
     R, t = frame_details.R, frame_details.t
-    # print(f"R{i}: \n{R}\nt{i}: \n{t}\n")
+    print(f"R{i}: \n{R}\nt{i}: \n{t}\n")
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
