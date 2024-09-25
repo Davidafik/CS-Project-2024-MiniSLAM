@@ -2,6 +2,8 @@ import numpy as np
 import cv2 as cv
 import glob
 import yaml
+from tqdm import tqdm
+
 
 ######################## Input parameters ########################
 
@@ -12,7 +14,7 @@ cross = (4, 6)  # <--- CHANGE HERE
 size = 4.0      # <--- CHANGE HERE
 
 # Folder to find all the images to process
-path = 'Camera Calibration/CalibDavidPhone'      # <--- CHANGE HERE
+path = 'Camera Calibration/CalibMini3Pro'      # <--- CHANGE HERE
 
 # Do you want some fancy output ?
 debug = True
@@ -39,7 +41,7 @@ count_opened = 0
 count_processed = 0
 
 # For each image in the folder proceed:
-for fname in images:
+for fname in tqdm(images):
 
     # Increase counter by one
     count_opened += 1
