@@ -15,170 +15,326 @@ class Mapping:
         self._global_3d_des = np.empty((0, 128), np.float32)
         
         self._all_frames = []
-        
-    def process_frame(self, new_frame) -> FrameDetails:
-        gray_new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2GRAY)
-        kp, des = self._sift.detectAndCompute(gray_new_frame, None)
-        frame_details_curr = FrameDetails(key_points=kp, descriptors=des)
-        
-        if len(self._all_frames) > 1:
-            matches_3d = self._localize_with_PnP(frame_details_curr)
+        self._frame_details_prev = None
             
-            if matches_3d is None:
-                return None
-            
-            frame_details_prev = self._all_frames[-1]
-            self._all_frames.append(frame_details_curr)
-            
-            # # order is yaw -> pitch -> roll
-            # yaw = np.arctan2(R[1,0], R[0,0])
-            # pitch = np.arcsin(-R[2,0])
-            # roll = np.arctan2(R[2,1], R[2,2])
-            
-            # print(f"R PnP: \n{R}")
-            # print(f"PnP yaw: {yaw}, pitch: {pitch}, roll: {roll}")
-            
-            
-            ##### triangulate new points based on matches to prev frame: #####
-
-            # find matches between the frames.
-            matches_prev_curr = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
-            pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
-
-            # filter matches that agree with the essential matrix.
-            E = self._essential_from_Rt(frame_details_prev, frame_details_curr)
-            mask = self._get_inliers_from_essential(pts_2d_prev, pts_2d_curr, E)
-            matches_prev_curr = [match for match, accepted in zip(matches_prev_curr, mask) if accepted]
-            
-            # filter matches between curr and prev frame, that refer to unknown 3d points.
-            new_kp_idxs = np.ones(len(kp), dtype=bool)
-            for global_match in matches_3d:
-                new_kp_idxs[global_match.trainIdx] = False
-                
-            # matches between the previus and current frame, that refer to unknown 3d points.
-            new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
-            self._matches = new_matches_prev_curr
-            
-            # triangulate new points and add them to the 3d cloud.
-            if len(matches_prev_curr) > 5:
-                pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
-                self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
-            
-            return frame_details_curr
-            
-        elif len(self._all_frames) == 1:
-            # Find feature matches between first and current frames
-            frame_details_prev = self._all_frames[-1]
-            pts_2d_first, pts_2d_curr, matches_prev_curr = self._localize_with_prev_frame(frame_details_prev, frame_details_curr)
-            
-            if matches_prev_curr is None: 
-                return None
-            
-            ret = self._triangulate(frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
-            if ret:
-                self._all_frames.append(frame_details_curr)
-            self._matches = matches_prev_curr
-            return frame_details_curr
-
-        else:
-            frame_details_curr.R = np.eye(3)
-            frame_details_curr.t = np.zeros((3,1))
-            frame_details_curr.P = np.hstack((self._K, np.zeros((3,1))))
-            self._all_frames.append(frame_details_curr)
-            return frame_details_curr
-        
-    def _localize_with_PnP(self, frame_details_curr : FrameDetails):
+    def process_frame(self, new_frame : np.ndarray) -> FrameDetails:
         """
-        Solve PnP to get rotation and translation
+        Processes a new frame by detecting keypoints, computing descriptors, and updating the map
+        with newly triangulated 3D points based on matches with previous frames.
 
         Args:
-            pts_3d (_type_): _description_
-            frame_details_curr (_type_): _description_
-            pts_2d_curr (_type_): _description_
+            new_frame (np.ndarray): The new frame to be processed, which should be an RGB image.
 
         Returns:
-            _type_: _description_
+            FrameDetails: An object containing the keypoints, descriptors, and the pose (R, t, P matrix) of the current frame.
+                          Returns None if the frame cannot be processed (e.g., localization fails).
         """
-        matches_3d_curr = self._find_matches(self._global_3d_des, frame_details_curr.descriptors)
+        # Convert the current RGB frame to grayscale, as the SIFT detector operates on single-channel images.
+        gray_new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2GRAY)
+
+        # Detect keypoints and compute descriptors using SIFT on the grayscale image.
+        kp, des = self._sift.detectAndCompute(gray_new_frame, None)
+
+        # Create a new FrameDetails object to store the current frame's keypoints, descriptors, and pose.
+        frame_details_curr = FrameDetails(key_points=kp, descriptors=des)
         
+        # If we have already have 3d points cloud, attempt localization with PnP, and triangulate new 3d points.
+        if len(self._global_3d_pts) != 0:
+            
+            ##### Part 1: Attempt to localize the current frame using PnP (Perspective-n-Point) with the global 3D map. #####
+            
+            matches_3d = self._localize_with_PnP(frame_details_curr)
+            
+            # If localization failed, return None.
+            if matches_3d is None:
+                return None
+                        
+            # Append the current frame's details to the list of processed frames.
+            self._all_frames.append(frame_details_curr)
+            
+            ##### Part 2: Triangulate new points based on matches to the previous frame: #####
+            
+            # Check if the camera movement (based on translation vector) between the current and previous frames is minimal.
+            # If the camera hasn't moved significantly, skip triangulation and return the current frame details.
+            if self._frame_details_prev is None or np.linalg.norm(self._frame_details_prev.t - frame_details_curr.t) < 1:
+                # Store the frame for matching with the next one.
+                self._frame_details_prev = frame_details_curr
+                return frame_details_curr
+            
+            # Find matches between the descriptors of the previous and current frames.
+            matches_prev_curr = self._find_matches(self._frame_details_prev.descriptors, frame_details_curr.descriptors)
+
+            # Extract the 2D points corresponding to the matched keypoints in both the previous and current frames.
+            pts_2d_prev, pts_2d_curr = self._get_matched_points(self._frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
+
+            # Compute the essential matrix between the two frames (based on their rotation and translation that we found with PnP).
+            E = self._essential_from_Rt(self._frame_details_prev, frame_details_curr)
+
+            # Filter the matches that are consistent with the essential matrix (i.e., satisfy the epipolar constraint).
+            mask = self._get_inliers_from_essential(pts_2d_prev, pts_2d_curr, E)
+
+            # Retain only the matches that passed the epipolar constraint test.
+            matches_prev_curr = [match for match, accepted in zip(matches_prev_curr, mask) if accepted]
+
+            # Create a boolean array to track which keypoints in the current frame are not yet associated with any 3D points.
+            new_kp_idxs = np.ones(len(kp), dtype=bool)
+
+            # Mark keypoints that correspond to already-known 3D points as 'False' in the boolean array.
+            for global_match in matches_3d:
+                new_kp_idxs[global_match.trainIdx] = False
+
+            # Filter out matches between the previous and current frame that correspond to unknown (new) 3D points.
+            new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
+
+            # Get the matched 2D points from the previous and current frames for triangulation.
+            pts_2d_prev, pts_2d_curr = self._get_matched_points(self._frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
+
+            # Triangulate new 3D points from the 2D correspondences and add them to the global 3D map.
+            self._triangulate(self._frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
+
+            # Store the frame for matching with the next one.
+            self._frame_details_prev = frame_details_curr
+
+            # Store the matches for potential use elsewhere (e.g., for visualization or debugging).
+            self._matches = new_matches_prev_curr
+            
+            # Return the current frame's details after processing.
+            return frame_details_curr
+        
+        # If this is the second frame being processed, attempt to localize using feature matches between the first and the current frames.
+        elif len(self._all_frames) == 1:
+            # Retrieve the first frame details.
+            self._frame_details_prev = self._all_frames[-1]
+
+            # Attempt to localize using feature matches between the first frame and the current frame.
+            pts_2d_first, pts_2d_curr, matches_prev_curr = self._localize_with_prev_frame(self._frame_details_prev, frame_details_curr)
+            
+            # If localization failed, return None.
+            if matches_prev_curr is None:
+                return None
+            
+            # Triangulate new 3D points between the first and current frames.
+            ret = self._triangulate(self._frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
+            
+            # If triangulation fails, return None.
+            if not ret:
+                return None
+            
+            # Add the current frame to the list of processed frames.
+            self._all_frames.append(frame_details_curr)
+            
+            # Store the frame for matching with the next one.
+            self._frame_details_prev = frame_details_curr
+            
+            # Store the matches for potential use elsewhere (e.g., for visualization or debugging).
+            self._matches = matches_prev_curr
+            
+            # Return the current frame's details.
+            return frame_details_curr
+
+        # If this is the very first frame being processed, initialize its pose as the identity.
+        else:
+            # Set the rotation matrix to the identity matrix (no rotation).
+            frame_details_curr.R = np.eye(3)
+
+            # Set the translation vector to zero (camera located at the origin).
+            frame_details_curr.t = np.zeros((3, 1))
+
+            # Compute the initial projection matrix using the intrinsic camera matrix.
+            frame_details_curr.P = np.hstack((self._K, np.zeros((3, 1))))
+
+            # Add the first frame to the list of processed frames.
+            self._all_frames.append(frame_details_curr)
+
+            # Store the frame for matching with the next one.
+            self._frame_details_prev = frame_details_curr
+
+            # Return the current frame's details.
+            return frame_details_curr
+        
+    def _localize_with_PnP(self, frame_details_curr: FrameDetails) -> np.ndarray:
+        """
+        Solve the Perspective-n-Point (PnP) problem to estimate the camera's rotation and translation
+        based on 2D-3D correspondences between the current frame and the global 3D map.
+        Save Rotation matrix, translation vector and projection matrix in frame_details_curr.
+        
+        Args:
+            frame_details_curr (FrameDetails):
+                The FrameDetails object containing the keypoints and descriptors for the current frame.
+        
+        Returns:
+            matches_3d_curr (np.ndarray):
+                A numpy array of DMatch objects representing the 2D-3D correspondences between the current frame and global 3D points.
+                Returns None if there are insufficient matches or if PnP fails.
+        """
+        # Find feature matches between the global 3D descriptors and the current frame's descriptors.
+        matches_3d_curr = self._find_matches(self._global_3d_des, frame_details_curr.descriptors)
+
+        # Check if there are enough matches to attempt PnP. At least 5 matches are required for solving PnP.
         if len(matches_3d_curr) < 5:
-            print("not enough matches!")
+            print("Not enough matches!")
             return None
         
+        # Extract the corresponding 3D points from the global map based on the matched 3D descriptors.
         pts_3d = np.array([self._global_3d_pts[m.queryIdx] for m in matches_3d_curr])
+
+        # Extract the corresponding 2D points from the current frame's keypoints based on the matched descriptors.
         pts_2d_curr = np.array([frame_details_curr.key_points[m.trainIdx].pt for m in matches_3d_curr], dtype=np.float64)
-            
+
         try:
+            # Solve the PnP problem using RANSAC to estimate the rotation (rvec) and translation (t) of the camera.
             success, rvec, t, _ = cv2.solvePnPRansac(
-                objectPoints=pts_3d, 
-                imagePoints=pts_2d_curr, 
-                cameraMatrix=self._K, 
-                distCoeffs=self._distCoeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE,
-                confidence=0.999, reprojectionError=0.5)
-            
+                objectPoints=pts_3d,              # 3D points in the global map
+                imagePoints=pts_2d_curr,          # Corresponding 2D points in the current frame
+                cameraMatrix=self._K,             # Intrinsic camera matrix
+                distCoeffs=self._distCoeffs,      # Distortion coefficients of the camera
+                flags=cv2.SOLVEPNP_ITERATIVE,     # Method for solving PnP
+                confidence=0.999,                 # Confidence level for RANSAC
+                reprojectionError=0.5             # Maximum allowed reprojection error
+            )
+        
         except ValueError:
+            # Handle potential errors during the PnP solving process.
             print(f"PnP error! {ValueError}")
             return None
-        
+
+        # If PnP fails (e.g., if RANSAC cannot find a solution), return None.
         if not success:
             print("PnP failed!")
             return None
-        
+
+        # Convert the rotation vector (rvec) into a rotation matrix.
         R, _ = cv2.Rodrigues(rvec)
+
+        # Compute the projection matrix P using the intrinsic camera matrix and the rotation and translation.
         P = self._K @ np.hstack((R, t))
-        
+
+        # Update the current frame's rotation, translation, and projection matrix with the computed values.
         frame_details_curr.R = R
         frame_details_curr.t = t
         frame_details_curr.P = P
-        
+
+        # Return the 2D-3D matches found between the global map and the current frame.
         return matches_3d_curr
-        
-    def _localize_with_prev_frame(self, frame_details_prev : FrameDetails, frame_details_curr : FrameDetails):
+
+    def _localize_with_prev_frame(self, frame_details_prev: FrameDetails, frame_details_curr: FrameDetails) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Estimate the pose of the current frame relative to the previous frame by matching features and
+        computing the essential matrix.
+        Save Rotation matrix, translation vector and projection matrix in frame_details_curr.
+
+        Args:
+            frame_details_prev (FrameDetails):
+                The FrameDetails object containing keypoints, descriptors, and pose of the previous frame.
+            
+            frame_details_curr (FrameDetails):
+                The FrameDetails object containing keypoints and descriptors of the current frame.
+
+        Returns:
+            pts_2d_prev (np.ndarray): The 2D points from the previous frame that match the current frame's keypoints.
+            
+            pts_2d_curr (np.ndarray): The 2D points from the current frame that match the previous frame's keypoints.
+            
+            matches (np.ndarray): A numpy array of DMatch objects representing the matches between the previous and current frame.
+                
+            #### Returns None, None, None if localization  failed.
+            
+        """
+        # Find matches between the descriptors of the previous and current frames.
         matches = self._find_matches(frame_details_prev.descriptors, frame_details_curr.descriptors)
+
+        # Check if there are enough matches (at least 5) to proceed.
         if len(matches) < 5:
-            print("not enough matches!")
+            print("Not enough matches!")
             return None, None, None
-        
+
+        # Get the matched 2D points from the keypoints of the previous and current frames.
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
+
+        # Compute the essential matrix and refine the matches based on the epipolar constraint.
         E, matches = self._find_essntial(pts_2d_prev, pts_2d_curr, matches)
+
+        # Recompute the matched points based on the refined matches (filtered by the essential matrix).
         pts_2d_prev, pts_2d_curr = self._get_matched_points(frame_details_prev.key_points, frame_details_curr.key_points, matches)
-        P, R, t = self._calcPosition(E, pts_2d_prev, pts_2d_curr)
-    
+
+        # Estimate the current frame's pose (rotation and translation) using the essential matrix.
+        P, R, t = self._calcPosition(E, pts_2d_prev, pts_2d_curr, False)
+
+        # Update the current frame's rotation, translation, and projection matrix with the computed values.
         frame_details_curr.R = R
         frame_details_curr.t = t
         frame_details_curr.P = P
-            
+
+        # Return the matched 2D points from the previous and current frames, as well as the refined matches.
         return pts_2d_prev, pts_2d_curr, matches
+
+    def _calcPosition(self, E: np.ndarray, pts_2d_1: np.ndarray, pts_2d_2: np.ndarray, normalization: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Recover the camera's pose (rotation and translation) from the essential matrix and corresponding 2D points.
+
+        Args:
+            E (np.ndarray):
+                The 3x3 essential matrix, encoding the epipolar geometry between two views.
+            
+            pts_2d_1 (np.ndarray):
+                An array of 2D points from the first image (previous frame).
+            
+            pts_2d_2 (np.ndarray):
+                An array of 2D points from the second image (current frame).
+            
+            normalization (bool): 
+                If True, normalizes the translation vector `t` to unit length. 
+                [optional, Default is True].
+
+        Returns:
+            P (np.ndarray): The 3x4 projection matrix for the current frame, which is a combination of the camera's intrinsic matrix `K`
+                and the estimated rotation matrix `R` and translation vector `t`.
+            
+            R (np.ndarray): The 3x3 rotation matrix for the current frame.
+            
+            t (np.ndarray): The 3x1 translation vector for the current frame.
+        """
         
-    def _calcPosition(self, E, pts_2d_1, pts_2d_2, normalization : bool = True):
+        # Recover the rotation (R) and translation (t) from the essential matrix using the 2D points.
         _, R, t, _ = cv2.recoverPose(E, pts_2d_1, pts_2d_2, self._K)
+
+        # Optionally normalize the translation vector to have unit length.
         if normalization:
             t = t / np.linalg.norm(t)
+
+        # Construct the projection matrix P by combining the intrinsic matrix K with R and t.
         P = self._K @ np.hstack((R, t))
+
+        # Return the projection matrix (P), rotation matrix (R), and translation vector (t).
         return P, R, t
-        
-    def _find_matches(self, dsc1 : np.ndarray, dsc2 : np.ndarray) -> np.ndarray:
+    
+    def _find_matches(self, dsc1: np.ndarray, dsc2: np.ndarray) -> np.ndarray:
         """
-        Finds matches between the Key points of the two images, based on the distance of their descriptors.
-        Uses the Ratio Test to reduce False Positive results.
+        Finds matches between the key points of two images based on the distance of their descriptors.
+        Uses Lowe's Ratio Test to filter out false positive matches.
 
         Args:
             dsc1 (np.ndarray): Descriptors of the first image's key points.
             dsc2 (np.ndarray): Descriptors of the second image's key points.
 
         Returns:
-            np.ndarray: The matches found.
+            np.ndarray: Array of matches that passed the Ratio Test, sorted by descriptor distance.
         """
 
+        # Find the two best matches for each descriptor using KNN matching.
         allMatches = self._matcher.knnMatch(dsc1, dsc2, k=2)
 
         matches = []
+
+        # Apply Lowe's Ratio Test to retain only good matches.
         for m, n in allMatches:
             if m.distance < 0.8 * n.distance:
                 matches.append(m)
 
-        matches = sorted(matches, key = lambda x:x.distance)
+        # Sort the matches by their distance to prioritize the closest matches.
+        matches = sorted(matches, key=lambda x: x.distance)
+
+        # Return the matches as a NumPy array.
         return np.array(matches)
     
     def _get_matched_points(self, kp1: list, kp2: list, matches: list) -> tuple[np.ndarray, np.ndarray]:
@@ -186,24 +342,45 @@ class Mapping:
         Converts feature matches into 2D point correspondences for two frames.
 
         Args:
-            kp1 (list): Keypoints from frame 1.
-            kp2 (list): Keypoints from frame 2.
-            matches (list): List of feature matches.
+            kp1 (list): List of keypoints from the first frame.
+            kp2 (list): List of keypoints from the second frame.
+            matches (list): List of feature matches between the keypoints of the two frames.
 
         Returns:
-            tuple: Matched 2D points from the two frames.
+            tuple [np.ndarray, np.ndarray]: 
+            - pts1 (np.ndarray): Matched 2D points from the first frame.
+            - pts2 (np.ndarray): Matched 2D points from the second frame.
         """
+
+        # Extract 2D points corresponding to the keypoints in frame 1 and frame 2 from the matches.
         pts1 = np.array([kp1[m.queryIdx].pt for m in matches], dtype=np.float64)
         pts2 = np.array([kp2[m.trainIdx].pt for m in matches], dtype=np.float64)
+
+        # Return the matched 2D points from both frames as NumPy arrays.
         return pts1, pts2
-    
+
     def _find_essntial(self, pts1: list, pts2: list, matches : list):
+        """_summary_
+
+        Args:
+            pts1 (list): _description_
+            pts2 (list): _description_
+            matches (list): _description_
+
+        Returns:
+            _type_: _description_
+        """
         E, mask = cv2.findEssentialMat(pts1, pts2, self._K, cv2.RANSAC, prob=0.999, threshold=0.9)
         if mask is not None:
             matches = [match for match, accepted in zip(matches, mask) if accepted]
         return E, matches
         
     def _triangulate(self, P1, P2, pts_2d_1, pts_2d_2, matches, des):
+        
+        # Only triangulate new points if there are enough valid matches (at least 5).
+        if len(matches) < 5:
+            return False
+            
         try:
             # Triangulate new 3D points using the projection matrices of the first and current frames
             pts_4d_homogeneous = cv2.triangulatePoints(P1, P2, pts_2d_1.T, pts_2d_2.T)
@@ -285,3 +462,5 @@ class Mapping:
         epipolar_constraint = np.abs(np.sum(pts2.T * (F @ pts1.T), axis=0))
         
         return epipolar_constraint < threshold
+    
+    
