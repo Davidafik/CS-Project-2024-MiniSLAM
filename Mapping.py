@@ -57,6 +57,7 @@ class Mapping:
                 
             # matches between the previus and current frame, that refer to unknown 3d points.
             new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
+            self._matches = new_matches_prev_curr
             
             # triangulate new points and add them to the 3d cloud.
             if len(matches_prev_curr) > 5:
@@ -174,7 +175,7 @@ class Mapping:
 
         matches = []
         for m, n in allMatches:
-            if m.distance < 0.75 * n.distance:
+            if m.distance < 0.8 * n.distance:
                 matches.append(m)
 
         matches = sorted(matches, key = lambda x:x.distance)

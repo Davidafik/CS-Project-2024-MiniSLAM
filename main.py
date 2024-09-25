@@ -7,7 +7,6 @@ from Mapping import Mapping
 from Calibration import Calibration
 from FrameDetails import FrameDetails
 
-PATH_IMAGES = 'Testing Images'
 np.set_printoptions(precision=3, suppress=True)
 
 def read_images(folder_path: str, size : float = 0.25):
@@ -28,7 +27,7 @@ def read_images(folder_path: str, size : float = 0.25):
             
         if image is not None:  # Ensure the image was successfully read
             image = cv2.resize(image, dsize=None, fx=size, fy=size)
-            image =  cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # image =  cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             images.append(image)
         else:
             print(f"Warning: {img_path} could not be read.")
@@ -105,7 +104,10 @@ def drawMatches(image1 : np.ndarray, image2 : np.ndarray, kp1 : np.ndarray, kp2 
     """
     # draw connecting lines between matches
     imageMatches = cv2.drawMatches(image1, kp1, image2, kp2, matches[:numDraw], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    plotImage(imageMatches, "matches")
+    imageMatches = cv2.resize(imageMatches, dsize=None, fx=0.25, fy=0.25)
+    cv2.imshow("matches", imageMatches)
+    while cv2.waitKey(100) != ord('q'):
+        pass
 
 def draw_3d_cloud(points, cam_t : np.ndarray = None):
     fig = plt.figure()
@@ -137,28 +139,35 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
     plt.title('3D Point Cloud')
     plt.show()
 
-calib = Calibration("Camera Calibration/CalibDavidPhone/Calibration.npy")
+PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
+PATH_IMAGES = 'Testing Images'
+IMAGE_SCALE = 1
+SHOW_MATCHES = True
+
+calib = Calibration(PATH_CALIB)
 mapping = Mapping(calib.getIntrinsicMatrix(), calib.getExtrinsicMatrix())
 
-images = read_images(PATH_IMAGES, 0.25)
+images = read_images(PATH_IMAGES, IMAGE_SCALE)
 Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
 
-# frame_details0 = mapping.process_frame(images[0])
-# frame_details1 = mapping.process_frame(images[1])
-# drawMatches(images[0], images[1], frame_details0.key_points, frame_details1.key_points, mapping._matches, numDraw = 1000)
-
-for i, image in enumerate(images):
+prevFrameDetails = None
+for i, frame in enumerate(images):
     # print(i)
-    frame_details = mapping.process_frame(image)
+    frame_details = mapping.process_frame(frame)
     # drawKeyPoints(image, frame_details.key_points)
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
     print(f"R{i}: \n{R}\nt{i}: \n{t}\n")
+    
+    if SHOW_MATCHES and i > 0:
+        drawMatches(images[i-1], frame, prevFrameDetails.key_points, frame_details.key_points, mapping._matches, numDraw = 1000)
+    prevFrameDetails = frame_details
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
-    
+
+cv2.destroyAllWindows()
 
 print("******************************************************")
 # print(f"3d_pts: \n{mapping._points_3d_pts}, \nshape {mapping._points_3d_pts.shape}\n")
