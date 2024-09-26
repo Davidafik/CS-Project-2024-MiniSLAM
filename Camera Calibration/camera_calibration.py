@@ -2,7 +2,6 @@ import numpy as np
 import cv2 as cv
 import glob
 import yaml
-from tqdm import tqdm
 
 
 ######################## Input parameters ########################
@@ -41,7 +40,7 @@ count_opened = 0
 count_processed = 0
 
 # For each image in the folder proceed:
-for fname in tqdm(images):
+for fname in images:
 
     # Increase counter by one
     count_opened += 1

@@ -113,6 +113,14 @@ class OpenDJI:
         return self._background_frames.read()
 
 
+    def read(self):
+        """
+        Retrive the latest frame available, or None if no frame available.
+        """
+        frame = self._background_frames.read()
+        return frame is not None, frame
+
+
     def frameListener(self, eventHandler : EventListener):
         """
         Set frame listener - an EventListener class that will be called on

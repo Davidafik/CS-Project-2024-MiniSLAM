@@ -52,43 +52,28 @@ class Mapping:
             # Append the current frame's details to the list of processed frames.
             self._all_frames.append(frame_details_curr)
             
-            ##### Part 2: Triangulate new points based on matches to the previous frame: #####
-            
-            # Check if the camera movement (based on translation vector) between the current and previous frames is minimal.
-            # If the camera hasn't moved significantly, skip triangulation and return the current frame details.
-            if self._frame_details_prev is None or np.linalg.norm(self._frame_details_prev.t - frame_details_curr.t) < 1:
+            ##### Part 2: Triangulate new points based on matched features to the previous frame: #####
+
+            if self._frame_details_prev is None:
                 # Store the frame for matching with the next one.
                 self._frame_details_prev = frame_details_curr
                 return frame_details_curr
             
-            # Find matches between the descriptors of the previous and current frames.
-            matches_prev_curr = self._find_matches(self._frame_details_prev.descriptors, frame_details_curr.descriptors)
+            # Check if the camera movement (based on translation vector) between the current and previous frames is minimal.
+            # If the camera hasn't moved significantly, skip triangulation and return the current frame details.
+            dist_to_prev = np.linalg.norm(self._frame_details_prev.t - frame_details_curr.t)
+            if dist_to_prev < 1:
+                return frame_details_curr
+            
+            # Find feature matches between the previous and current frames
+            matches_prev_curr = self._matches_to_prev_frame(frame_details_curr)
 
-            # Extract the 2D points corresponding to the matched keypoints in both the previous and current frames.
-            pts_2d_prev, pts_2d_curr = self._get_matched_points(self._frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
+            # Filter matches between the previous and current frame that correspond to unknown (new) 3D points
+            new_matches_prev_curr = self._filter_matches_new_pts(frame_details_curr, matches_prev_curr, matches_3d)
 
-            # Compute the essential matrix between the two frames (based on their rotation and translation that we found with PnP).
-            E = self._essential_from_Rt(self._frame_details_prev, frame_details_curr)
-
-            # Filter the matches that are consistent with the essential matrix (i.e., satisfy the epipolar constraint).
-            mask = self._get_inliers_from_essential(pts_2d_prev, pts_2d_curr, E)
-
-            # Retain only the matches that passed the epipolar constraint test.
-            matches_prev_curr = [match for match, accepted in zip(matches_prev_curr, mask) if accepted]
-
-            # Create a boolean array to track which keypoints in the current frame are not yet associated with any 3D points.
-            new_kp_idxs = np.ones(len(kp), dtype=bool)
-
-            # Mark keypoints that correspond to already-known 3D points as 'False' in the boolean array.
-            for global_match in matches_3d:
-                new_kp_idxs[global_match.trainIdx] = False
-
-            # Filter out matches between the previous and current frame that correspond to unknown (new) 3D points.
-            new_matches_prev_curr = [m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]]
-
-            # Get the matched 2D points from the previous and current frames for triangulation.
+            # Get the lists of the 2D points from the matches.
             pts_2d_prev, pts_2d_curr = self._get_matched_points(self._frame_details_prev.key_points, frame_details_curr.key_points, new_matches_prev_curr)
-
+                        
             # Triangulate new 3D points from the 2D correspondences and add them to the global 3D map.
             self._triangulate(self._frame_details_prev.P, frame_details_curr.P, pts_2d_prev, pts_2d_curr, new_matches_prev_curr, des)
 
@@ -103,6 +88,9 @@ class Mapping:
         
         # If this is the second frame being processed, attempt to localize using feature matches between the first and the current frames.
         elif len(self._all_frames) == 1:
+            
+            ##### Part 1: Attempt to localize the current frame using feature matches between the first current frame. #####
+            
             # Retrieve the first frame details.
             self._frame_details_prev = self._all_frames[-1]
 
@@ -112,6 +100,8 @@ class Mapping:
             # If localization failed, return None.
             if matches_prev_curr is None:
                 return None
+            
+            ##### Part 2: Triangulate 3d points based on the matched features found in part 1: #####
             
             # Triangulate new 3D points between the first and current frames.
             ret = self._triangulate(self._frame_details_prev.P, frame_details_curr.P, pts_2d_first, pts_2d_curr, matches_prev_curr, des)
@@ -463,4 +453,52 @@ class Mapping:
         
         return epipolar_constraint < threshold
     
+    def _filter_matches_new_pts(self, frame_details_curr: FrameDetails, matches_prev_curr: np.ndarray, matches_3d: np.ndarray) -> np.ndarray:
+        """
+        Filter out matches between the previous and current frame that correspond to unknown (new) 3D points.
+
+        Args:
+            frame_details_curr (FrameDetails): _description_
+            matches_prev_curr (np.ndarray): _description_
+            matches_3d (np.ndarray): _description_
+
+        Returns:
+            np.ndarray: _description_
+        """
+        # Create a boolean array to track which keypoints in the current frame are not yet associated with any 3D points.
+        new_kp_idxs = np.ones(len(frame_details_curr.key_points), dtype=bool)
+
+        # Mark keypoints that correspond to already-known 3D points as 'False' in the boolean array.
+        for global_match in matches_3d:
+            new_kp_idxs[global_match.trainIdx] = False
+
+        # Filter out matches between the previous and current frame that correspond to unknown (new) 3D points.
+        return np.array([m for m in matches_prev_curr if new_kp_idxs[m.trainIdx]])
+    
+    def _matches_to_prev_frame(self, frame_details_curr: FrameDetails) -> np.ndarray:
+        """
+        Find matches between the descriptors of the previous and current frames.
+        Filter and return only the matches that are consistent with the essential matrix
+
+        Args:
+            frame_details_curr (FrameDetails): _description_
+
+        Returns:
+            np.ndarray: _description_
+        """
+        # Find matches between the descriptors of the previous and current frames.
+        matches_prev_curr = self._find_matches(self._frame_details_prev.descriptors, frame_details_curr.descriptors)
+
+        # Extract the 2D points corresponding to the matched keypoints in both the previous and current frames.
+        pts_2d_prev, pts_2d_curr = self._get_matched_points(self._frame_details_prev.key_points, frame_details_curr.key_points, matches_prev_curr)
+
+        # Compute the essential matrix between the two frames (based on their rotation and translation that we found with PnP).
+        E = self._essential_from_Rt(self._frame_details_prev, frame_details_curr)
+
+        # Filter the matches that are consistent with the essential matrix (i.e., satisfy the epipolar constraint).
+        mask = self._get_inliers_from_essential(pts_2d_prev, pts_2d_curr, E)
+
+        # Retain only the matches that passed the epipolar constraint test.
+        return np.array([match for match, accepted in zip(matches_prev_curr, mask) if accepted])
+
     
