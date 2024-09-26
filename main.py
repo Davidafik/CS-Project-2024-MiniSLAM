@@ -8,7 +8,7 @@ from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images'
+PATH_IMAGES = 'Testing Images/2'
 IMAGE_SCALE = 1
 SHOW_MATCHES = False
 
@@ -25,7 +25,7 @@ plot_position = Utils.plot_position()
 prevFrameDetails = None
 for i, frame in enumerate(images):
     frame_details = mapping.process_frame(frame)
-    # drawKeyPoints(image, frame_details.key_points)
+    Utils.drawKeyPoints(frame, frame_details.key_points)
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
