@@ -97,7 +97,7 @@ with OpenDJI(IP_ADDR) as drone:
     # print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
     # Utils.draw_3d_cloud(mapping._global_3d_pts)
-    Utils.draw_3d_cloud(mapping._global_3d_pts, ts)
+    Utils.draw_3d_cloud(mapping._map3d.pts, ts)
 
 
         

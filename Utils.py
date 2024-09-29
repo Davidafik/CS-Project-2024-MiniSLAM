@@ -78,8 +78,10 @@ def drawKeyPoints(image : np.ndarray, kp : np.ndarray) -> None:
         image1 (np.ndarray): The image.
         kp1 (np.ndarray): Key points for the image
     """
-    im = cv2.drawKeypoints(image, kp, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    plt.imshow(im)
+    image = cv2.drawKeypoints(image, kp, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    image =  cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    plt.imshow(image)
     plt.title('Image')
     plt.axis('off')
     plt.tight_layout()
@@ -100,7 +102,7 @@ def drawMatches(image1 : np.ndarray, image2 : np.ndarray, kp1 : np.ndarray, kp2 
     """
     # draw connecting lines between matches
     imageMatches = cv2.drawMatches(image1, kp1, image2, kp2, matches[:numDraw], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    imageMatches = cv2.resize(imageMatches, dsize=None, fx=0.25, fy=0.25)
+    # imageMatches = cv2.resize(imageMatches, dsize=None, fx=0.25, fy=0.25)
     cv2.imshow("matches", imageMatches)
     while cv2.waitKey(100) != ord('q'):
         pass
