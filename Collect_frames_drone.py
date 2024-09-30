@@ -17,10 +17,10 @@ VIDEO_SOURCE = "10.0.0.10"
 SAVE_PATH = 'Testing Images/1'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 10
+MAX_IMAGES = 100
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 2500
+WAIT_TIME = 750
 
 # Scale the image for display:
 SCALE_FACTOR = 0.5

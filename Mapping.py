@@ -68,8 +68,8 @@ class Mapping:
             # Check if the camera movement (based on translation vector) between the current and previous frames is minimal.
             # If the camera hasn't moved significantly, skip triangulation and return the current frame details.
             dist_to_prev = np.linalg.norm(self._frame_details_prev.t - frame_details_curr.t)
-            if dist_to_prev < 1:
-                print("no triangulation - camera movement is too small")
+            if dist_to_prev < 1 or dist_to_prev > 15:
+                print(f"no triangulation - camera movement is {dist_to_prev}")
                 return frame_details_curr
             
             # Find feature matches between the previous and current frames
@@ -385,6 +385,9 @@ class Mapping:
             
             pts_3d = pts_3d[good_pts_idxs]
             dsc_3d = dsc_3d[good_pts_idxs]
+            
+            if len(pts_3d) < 5:
+                return False
             
             self._map3d += (pts_3d, dsc_3d)
             

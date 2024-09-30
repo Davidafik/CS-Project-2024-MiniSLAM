@@ -13,7 +13,7 @@ PATH_IMAGES = 'Testing Images/1'
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/3"
 
-IMAGE_SCALE = 0.75
+IMAGE_SCALE = 0.70
 SHOW_MATCHES = False
 
 np.set_printoptions(precision=3, suppress=True)
@@ -29,12 +29,13 @@ plot_position = Utils.plot_position()
 
 prevFrameDetails = None
 for i, frame in enumerate(images):
+    print(f"{i}:")
     frame_details = mapping.process_frame(frame)
     # Utils.drawKeyPoints(frame, frame_details.kp)
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
-    print(f"{i}:\nR{i}: \n{R}\nt{i}: \n{t}\n")
+    print(f"R{i}: \n{R}\nt{i}: \n{t}\n")
     plot_position.plot_position_heading(R, t)
     
     if SHOW_MATCHES and i > 0:
