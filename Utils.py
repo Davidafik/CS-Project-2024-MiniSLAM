@@ -123,8 +123,8 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
         axis_min = np.min(np.vstack((np.min(cam_t, axis = 0), axis_min)), axis=0)
         
     axis_mid = (axis_max + axis_min) / 2
-    # axis_rng = np.max(axis_max - axis_mid)
-    axis_rng = np.max(np.std(points, axis=0))
+    axis_rng = np.max(axis_max - axis_mid)
+    # axis_rng = 2*np.max(np.std(points, axis=0))
     
     ax.set_box_aspect([1.0, 1.0, 1.0])
     ax.set_xlim3d([axis_mid[0] - axis_rng, axis_mid[0] + axis_rng])
@@ -155,7 +155,7 @@ class plot_position:
         # self.ax.clear()
         
         self.ax.grid(True)
-        x, z = -t[0, 0], t[2, 0]
+        x, z = -t[0, 0], -t[2, 0]
         # Plot the current position        
         self.ax.text(x, z, s=self.count, color='blue')
         

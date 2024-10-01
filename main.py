@@ -1,19 +1,18 @@
 import cv2
 import numpy as np
 
-from OpenDJI import OpenDJI
 from Mapping import Mapping
 from Calibration import Calibration
 from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/1'
+PATH_IMAGES = 'Testing Images/4'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/3"
 
-IMAGE_SCALE = 0.70
+IMAGE_SCALE = 0.7
 SHOW_MATCHES = False
 
 np.set_printoptions(precision=3, suppress=True)
@@ -44,6 +43,8 @@ for i, frame in enumerate(images):
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
+    if i%10 == 9:
+        mapping.remove_outliers()
 
 mapping.save(f"{PATH_IMAGES}/map.npy")
 # mapping.load(f"{PATH_IMAGES}/map.npy")
@@ -53,7 +54,7 @@ cv2.destroyAllWindows()
 
 print("*"*50)
 print(f"3d_pts: \n{mapping._map3d.pts}, \nshape {mapping._map3d.pts.shape}\n")
-print(f"ts: \n{ts}, \nshape {ts.shape}\n")
+# print(f"ts: \n{ts}, \nshape {ts.shape}\n")
 # print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
 # Utils.draw_3d_cloud(mapping._global_3d_pts)

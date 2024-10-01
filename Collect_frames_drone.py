@@ -14,7 +14,7 @@ DRONE_CAM = True
 VIDEO_SOURCE = "10.0.0.10"
 
 # Save folder
-SAVE_PATH = 'Testing Images/1'
+SAVE_PATH = 'Testing Images/4'
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 100

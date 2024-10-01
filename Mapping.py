@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+from sklearn.metrics import pairwise_distances
 from FrameDetails import FrameDetails
 from Map3D import Map3D
 
@@ -180,8 +180,8 @@ class Mapping:
                 cameraMatrix=self._K,             # Intrinsic camera matrix
                 distCoeffs=self._distCoeffs,      # Distortion coefficients of the camera
                 flags=cv2.SOLVEPNP_ITERATIVE,     # Method for solving PnP
-                # confidence=0.999,                 # Confidence level for RANSAC
-                # reprojectionError=0.5,            # Maximum allowed reprojection error
+                confidence=0.8,                 # Confidence level for RANSAC
+                # reprojectionError=0.8,            # Maximum allowed reprojection error
                 # rvec=cv2.Rodrigues(self._frame_details_prev.R)[0],
                 # tvec=self._frame_details_prev.t,
                 # useExtrinsicGuess=True
@@ -388,6 +388,7 @@ class Mapping:
             
             if len(pts_3d) < 5:
                 return False
+            print(f"{len(pts_3d)} new 3d points saved")
             
             self._map3d += (pts_3d, dsc_3d)
             
@@ -502,4 +503,20 @@ class Mapping:
         # Retain only the matches that passed the epipolar constraint test.
         return np.array([match for match, accepted in zip(matches_prev_curr, mask) if accepted])
 
-    
+    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5, min_threshold = 1e-1):
+        dist_mat  = pairwise_distances(self._map3d.pts, self._map3d.pts, metric='euclidean', n_jobs=1)
+        pts_idxs = np.ones(len(self._map3d.pts), dtype=bool)
+        
+        for i, dist in enumerate(dist_mat):
+            closest_idx = np.argpartition(dist, 1)[1]
+            num_neighbors = (dist < neighbor_dist).sum()
+            closest_dist = dist[closest_idx]
+            if num_neighbors < min_neighbors:
+                pts_idxs[i] = False
+            if  closest_idx > i and closest_dist < min_threshold:
+                pts_idxs[i] = False
+            
+        self._map3d.pts = self._map3d.pts[pts_idxs]
+        self._map3d.dsc = self._map3d.dsc[pts_idxs]
+        print(len(self._map3d.pts))
+                    
