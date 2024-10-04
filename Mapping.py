@@ -504,7 +504,7 @@ class Mapping:
         return np.array([match for match, accepted in zip(matches_prev_curr, mask) if accepted])
 
     def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5, min_threshold = 1e-1):
-        dist_mat  = pairwise_distances(self._map3d.pts, self._map3d.pts, metric='euclidean', n_jobs=1)
+        dist_mat  = pairwise_distances(self._map3d.pts, self._map3d.pts, metric='euclidean', n_jobs=-1)
         pts_idxs = np.ones(len(self._map3d.pts), dtype=bool)
         
         for i, dist in enumerate(dist_mat):
@@ -513,10 +513,9 @@ class Mapping:
             closest_dist = dist[closest_idx]
             if num_neighbors < min_neighbors:
                 pts_idxs[i] = False
-            if  closest_idx > i and closest_dist < min_threshold:
-                pts_idxs[i] = False
+            # if  closest_idx < i and closest_dist < min_threshold:
+            #     pts_idxs[i] = False
             
         self._map3d.pts = self._map3d.pts[pts_idxs]
         self._map3d.dsc = self._map3d.dsc[pts_idxs]
-        print(len(self._map3d.pts))
                     

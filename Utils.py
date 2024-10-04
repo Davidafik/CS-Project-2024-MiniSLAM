@@ -104,8 +104,7 @@ def drawMatches(image1 : np.ndarray, image2 : np.ndarray, kp1 : np.ndarray, kp2 
     imageMatches = cv2.drawMatches(image1, kp1, image2, kp2, matches[:numDraw], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
     # imageMatches = cv2.resize(imageMatches, dsize=None, fx=0.25, fy=0.25)
     cv2.imshow("matches", imageMatches)
-    while cv2.waitKey(100) != ord('q'):
-        pass
+    
 
 def draw_3d_cloud(points, cam_t : np.ndarray = None):
     fig = plt.figure()
