@@ -2,7 +2,7 @@ import cv2
 import datetime
 from OpenDJI import OpenDJI
 import VCS
-from Mapping import Mapping
+from MiniSLAM import Mapping
 from Calibration import Calibration
 import numpy as np
 import Utils
@@ -11,16 +11,16 @@ import Utils
 ####################### Input parameters #######################
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_MAP = 'Testing Images/3/map.npy'
+PATH_MAP = 'Testing Images/5/map.npy'
 
 # True if you taking the images with the mini 3 pro.
 DRONE_CAM = True
 
-# IP address of the connected android device
+# IP address of the connected android device / cv2 video source.
 VIDEO_SOURCE = "192.168.137.8"
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 1e10
+MAX_IMAGES = 100
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
 WAIT_TIME = 1
@@ -38,6 +38,8 @@ MIRROR_DISPLAY = False
 # pressing this key will close the program.
 QUIT_KEY = 'q'
 
+CONTROL = False
+
 ################################################################
 
 def put_text(frame, count):
@@ -54,20 +56,22 @@ calib = Calibration(PATH_CALIB)
 mapping = Mapping(calib.getIntrinsicMatrix(), calib.getExtrinsicMatrix(), add_new_pts=False)
 mapping.load(PATH_MAP)
 
-print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
-mapping.remove_outliers()
-print(f"****num points after: {len(mapping._map3d.pts)}\n")# mapping.remove_isolated_points(0.05)
+# print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
+# mapping.remove_outliers()
+# print(f"****num points after: {len(mapping._map3d.pts)}\n")# mapping.remove_isolated_points(0.05)
 
-# Utils.draw_3d_cloud(mapping._map3d.pts)
+Utils.draw_3d_cloud(mapping._map3d.pts)
 
 if DRONE_CAM:
     cam = OpenDJI(VIDEO_SOURCE)
-    take_off = ""
-    # while take_off != "success":
-    #     take_off = cam.takeoff(True)
-    #     print(take_off)
-    #     cv2.waitKey(300)
-    print(cam.enableControl(get_result=True))
+    if CONTROL:
+        take_off = ""
+        while take_off != "success":
+            take_off = cam.takeoff(True)
+            print(take_off)
+            cv2.waitKey(300)
+        cv2.waitKey(5000)
+        print(f"enable: {cam.enableControl(get_result=True)}")
 else:
     cam = VCS.VideoCapture(VIDEO_SOURCE)
 
@@ -81,18 +85,17 @@ count = 0
 # Time of the last saved frame.
 last_frame = datetime.datetime.now()
 
-# Press QUIT_KEY to close the program.
 while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
     # Get frame from the camera.
     ret, frame = cam.read()
 
-    # What to do when no frame available.
+    # If no frame available - skip.
     if not ret:
         print ('Error retriving video stream')
         print(cam.move(0, 0, 0, 0, get_result=True))
         continue
 
-    # Resize frame
+    # Resize frame.
     frame = cv2.resize(frame, dsize = None,
                            fx = SCALE_READ,
                            fy = SCALE_READ)
@@ -104,6 +107,8 @@ while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
     frame_details = mapping.process_frame(frame)
     # Utils.drawKeyPoints(frame, frame_details.kp)
     
+    ascent, roll, pitch = 0, 0, 0
+    
     if frame_details is not None:
         R, t = frame_details.R, frame_details.t
         print(f"R{count}: \n{R}\nt{count}: \n{t}\n")
@@ -112,15 +117,17 @@ while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
         ascent, roll, pitch = float(t[1]), float(t[0]), float(t[2])
         pitch = min(0.005, max(-0.005, pitch))
         roll = min(0.005, max(-0.005, roll))
-        # cam.move(0, ascent, roll, pitch)
-        print(f'rc {0} {0:.2f} {roll:.2f} {pitch:.2f}')
-        print(cam.move(0.,0., roll, pitch, get_result=True))
+        ascent = min(0.005, max(-0.005, ascent))
         
         ts = np.vstack((ts, t.T))
         
-    else:
-        print(cam.move(0, 0, 0, 0, get_result=True))
-        
+    
+    # Send control command.
+    if DRONE_CAM and CONTROL:
+        print(f'rc {0} {0:.2f} {roll:.2f} {pitch:.2f}')
+        print(cam.move(0.,0., roll, pitch, get_result=True))
+        # print(cam.move(0, ascent, roll, pitch, get_result=True))
+            
 
     # Display frame.
     if DISPLAY_IMAGE:

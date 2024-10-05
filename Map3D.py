@@ -1,4 +1,6 @@
 import numpy as np
+from sklearn.metrics import pairwise_distances
+
 
 class Map3D:
     def __init__(self, numpyFileName: str = None) -> None:
@@ -30,4 +32,25 @@ class Map3D:
         return self 
             
     def isEmpty(self):
-        return len(self.pts) is 0
+        return len(self.pts) == 0
+    
+    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5):
+        dist_mat  = pairwise_distances(self.pts, self.pts, metric='euclidean', n_jobs=-1)
+        pts_idxs = np.ones(len(self.pts), dtype=bool)
+        
+        for i, dist in enumerate(dist_mat):
+            # Remove points that are too secluded.
+            num_neighbors = (dist < neighbor_dist).sum() - 1
+            if num_neighbors < min_neighbors:
+                pts_idxs[i] = False
+
+            # Remove points that are too close to each other. *I dont think it works well*.
+            closest_idx = np.argpartition(dist, 1)[1]
+            closest_dist = dist[closest_idx]
+            if  closest_idx < i and closest_dist < 0.001:
+                pts_idxs[i] = False
+            
+        self.pts = self.pts[pts_idxs]
+        self.dsc = self.dsc[pts_idxs]
+        
+    
