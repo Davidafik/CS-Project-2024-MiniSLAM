@@ -9,12 +9,12 @@ PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
 PATH_IMAGES = 'Testing Images/5'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
-# PATH_IMAGES = "Testing Images/3"
+# PATH_IMAGES = "Testing Images/1"
 
 IMAGE_SCALE = 0.5
 
 # outliers removing params:
-min_neighbors, neighbor_dist = 5, 0.5
+min_neighbors, neighbor_dist = 5, 1
 
 SHOW_MATCHES = False
 
@@ -37,7 +37,8 @@ for i, frame in enumerate(images):
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
-    print(f"R{i}: \n{R}\nt{i}: \n{t}\n")
+    # print(f"R{i}: \n{R}\n")
+    print(f"t{i}: {t.reshape(3)}\n")
     plot_position.plot_position_heading(R, t)
     
     if SHOW_MATCHES and i > 0:
@@ -46,10 +47,14 @@ for i, frame in enumerate(images):
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
-    if i%10 == 9:
+    if i%8 == 0:
         print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
         mapping.remove_outliers(min_neighbors, neighbor_dist)
         print(f"****num points after: {len(mapping._map3d.pts)}\n")
+
+print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
+mapping.remove_outliers(min_neighbors, neighbor_dist)
+print(f"****num points after: {len(mapping._map3d.pts)}\n")
 
 mapping.save(f"{PATH_IMAGES}/map.npy")
 # mapping.load(f"{PATH_IMAGES}/map.npy")
@@ -58,21 +63,11 @@ mapping.save(f"{PATH_IMAGES}/map.npy")
 # cv2.destroyAllWindows()
 
 print("*"*50)
-print(f"3d_pts: \n{mapping._map3d.pts}, \nshape {mapping._map3d.pts.shape}\n")
+print(f"3d_pts shape: {mapping._map3d.pts.shape}\n")
 # print(f"ts: \n{ts}, \nshape {ts.shape}\n")
 # print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
-# Utils.draw_3d_cloud(mapping._global_3d_pts)
-Utils.draw_3d_cloud(mapping._map3d.pts, ts)
-
-
-
-
-
-
-
-
-
-
+Utils.draw_3d_cloud(mapping._map3d.pts)
+# Utils.draw_3d_cloud(mapping._map3d.pts, ts)
 
 

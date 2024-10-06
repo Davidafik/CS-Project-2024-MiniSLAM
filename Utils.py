@@ -117,9 +117,14 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
     axis_min = np.min(points, axis = 0)
 
     if cam_t is not None:
-        ax.scatter(cam_t[:, 0], cam_t[:, 1], cam_t[:, 2], s = 2, marker="s")
-        axis_max = np.max(np.vstack((np.max(cam_t, axis = 0), axis_max)), axis=0)
-        axis_min = np.min(np.vstack((np.min(cam_t, axis = 0), axis_min)), axis=0)
+        x = -cam_t[:, 0]
+        y = -cam_t[:, 1]
+        z = -cam_t[:, 2]
+        ax.plot(x, y, z, marker='s', linestyle='-', color='r')
+
+        # ax.scatter(cam_t[:, 0], -cam_t[:, 1], cam_t[:, 2], s = 2, marker="s")
+        axis_max = np.max(np.vstack((np.max(-cam_t, axis = 0), axis_max)), axis=0)
+        axis_min = np.min(np.vstack((np.min(-cam_t, axis = 0), axis_min)), axis=0)
         
     axis_mid = (axis_max + axis_min) / 2
     axis_rng = np.max(axis_max - axis_mid)
@@ -140,7 +145,7 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
 class plot_position:
     def __init__(self):
         self.fig, self.ax = plt.subplots()
-        self.count = 0
+        self.count = 1
         
     def plot_position_heading(self, R: np.ndarray, t: np.ndarray):
         """

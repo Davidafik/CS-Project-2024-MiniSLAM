@@ -8,10 +8,10 @@ import VCS
 ####################### Input parameters #######################
 
 # True if you taking the images with the mini 3 pro.
-DRONE_CAM = False
+DRONE_CAM = True
 
 # IP address of the connected android device
-VIDEO_SOURCE = 0 #"10.0.0.10"
+VIDEO_SOURCE = "10.0.0.4"
 
 # Save folder
 SAVE_PATH = 'Camera Calibration/CalibMini3Pro'
@@ -26,7 +26,7 @@ MAX_IMAGES = 50
 WAIT_TIME = 1000
 
 # Scale the image for display:
-SCALE_FACTOR = 1
+SCALE_FACTOR = 0.5
 
 # Mirror image for more intuitive display.
 # Recommended when holding the board in front of the camera.

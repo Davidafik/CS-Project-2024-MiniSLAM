@@ -67,7 +67,7 @@ class Mapping:
             # Check if the camera movement (based on translation vector) between the current and previous frames is minimal.
             # If the camera hasn't moved significantly, skip triangulation and return the current frame details.
             dist_to_prev = np.linalg.norm(self._frame_details_prev.t - frame_details_curr.t)
-            if dist_to_prev < 1 or dist_to_prev > 15:
+            if dist_to_prev < 0.5 or dist_to_prev > 15:
                 print(f"no triangulation - camera movement is {dist_to_prev}")
                 return frame_details_curr
             
@@ -195,7 +195,7 @@ class Mapping:
         if not success:
             print("PnP failed!")
             return None
-
+        
         # Convert the rotation vector (rvec) into a rotation matrix.
         R, _ = cv2.Rodrigues(rvec)
 
@@ -363,7 +363,7 @@ class Mapping:
         Returns:
             _type_: _description_
         """
-        E, mask = cv2.findEssentialMat(pts2, pts1, self._K, cv2.RANSAC, prob=0.999, threshold=0.9)
+        E, mask = cv2.findEssentialMat(pts1, pts2, self._K, cv2.RANSAC, prob=0.999, threshold=0.9)
         if mask is not None:
             matches = [match for match, accepted in zip(matches, mask) if accepted]
         return E, matches
@@ -429,10 +429,10 @@ class Mapping:
         R1, t1 = frame_details_prev.R, frame_details_prev.t
         R2, t2 = frame_details_curr.R, frame_details_curr.t
         # Compute the relative rotation
-        R_rel = R2 @ R1.T
+        R_rel = R2 @ np.linalg.inv(R1) 
 
         # Compute the relative translation
-        t_rel = (t2 - R2 @ R1.T @ t1).reshape(3)
+        t_rel = (t2 - t1).reshape(3)
 
         # Compute the skew-symmetric matrix [t_rel]_x
         t_x = np.array([[0, -t_rel[2], t_rel[1]],

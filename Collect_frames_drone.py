@@ -8,13 +8,13 @@ import VCS
 ####################### Input parameters #######################
 
 # True if you taking the images with the mini 3 pro.
-DRONE_CAM = True
+DRONE_CAM = False
 
 # IP address of the connected android device
-VIDEO_SOURCE = "192.168.137.8"
+VIDEO_SOURCE = 0 #"192.168.137.8"
 
 # Save folder
-SAVE_PATH = 'Testing Images/5'
+SAVE_PATH = 'Testing Images/1'
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 150
