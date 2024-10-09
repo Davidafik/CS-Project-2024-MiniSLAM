@@ -429,15 +429,13 @@ class Mapping:
         R1, t1 = frame_details_prev.R, frame_details_prev.t
         R2, t2 = frame_details_curr.R, frame_details_curr.t
         # Compute the relative rotation
-        R_rel = R2 @ np.linalg.inv(R1) 
+        R_rel = R2 @ R1.T
 
         # Compute the relative translation
-        t_rel = (t2 - t1).reshape(3)
+        t_rel = ((R2.T @ t2) - (R1.T @ t1)).reshape(3)
 
         # Compute the skew-symmetric matrix [t_rel]_x
-        t_x = np.array([[0, -t_rel[2], t_rel[1]],
-                        [t_rel[2], 0, -t_rel[0]],
-                        [-t_rel[1], t_rel[0], 0]])
+        t_x = np.cross(np.eye(3), t_rel)
 
         # Compute the essential matrix: E = [t_rel]_x * R_rel
         E = t_x @ R_rel
@@ -446,6 +444,15 @@ class Mapping:
     
     def _get_inliers_from_essential(self, pts1, pts2, E, threshold=1e-2):
         F = self._K_inv.T @ E @ self._K_inv
+        # # print(f"F: \n{F/F[2,2]}")
+        
+        # F_feat, _ = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, 0.9, 0.999, 100)
+        # # print(f"F feat: \n{F_feat}")
+        
+        # print(f"diff F: \n{F/F[2,2] - F_feat}")
+        
+        # F = 0.5*F/F[2,2] + 0.5*F_feat
+        # # print(f"F avg: \n{F}")
         
         pts1 = np.hstack((pts1, np.ones((len(pts1), 1))))
         pts2 = np.hstack((pts2, np.ones((len(pts2), 1))))

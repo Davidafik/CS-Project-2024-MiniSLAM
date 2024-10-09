@@ -17,15 +17,15 @@ PATH_MAP = 'Testing Images/5/map.npy'
 DRONE_CAM = True
 
 # IP address of the connected android device / cv2 video source.
-VIDEO_SOURCE = "192.168.137.8"
+VIDEO_SOURCE = "10.0.0.4"
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 100
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 1
+WAIT_TIME = 20
 
-SCALE_READ = 0.5
+SCALE_READ = 0.7
 
 DISPLAY_IMAGE = False
 
@@ -38,7 +38,7 @@ MIRROR_DISPLAY = False
 # pressing this key will close the program.
 QUIT_KEY = 'q'
 
-CONTROL = False
+CONTROL = True
 
 ################################################################
 
@@ -60,7 +60,7 @@ mapping.load(PATH_MAP)
 # mapping.remove_outliers()
 # print(f"****num points after: {len(mapping._map3d.pts)}\n")# mapping.remove_isolated_points(0.05)
 
-Utils.draw_3d_cloud(mapping._map3d.pts)
+# Utils.draw_3d_cloud(mapping._map3d.pts)
 
 if DRONE_CAM:
     cam = OpenDJI(VIDEO_SOURCE)
@@ -114,7 +114,8 @@ while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
         print(f"R{count}: \n{R}\nt{count}: \n{t}\n")
         plot_position.plot_position_heading(R, t)
         
-        ascent, roll, pitch = float(t[1]), float(t[0]), float(t[2])
+        c = (-R.T @ t) / 20
+        ascent, roll, pitch = float(-c[1]), float(-c[0]), float(-c[2])
         pitch = min(0.005, max(-0.005, pitch))
         roll = min(0.005, max(-0.005, roll))
         ascent = min(0.005, max(-0.005, ascent))

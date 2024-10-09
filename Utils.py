@@ -159,7 +159,10 @@ class plot_position:
         # self.ax.clear()
         
         self.ax.grid(True)
-        x, z = -t[0, 0], -t[2, 0]
+        self.ax.axis('equal')
+        c = -R.T @ t
+        # c = -np.linalg.inv(R) @ t
+        x, z = c[0, 0], c[2, 0]
         # Plot the current position        
         self.ax.text(x, z, s=self.count, color='blue')
         

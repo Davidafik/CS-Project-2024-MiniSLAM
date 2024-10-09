@@ -8,21 +8,21 @@ import VCS
 ####################### Input parameters #######################
 
 # True if you taking the images with the mini 3 pro.
-DRONE_CAM = False
+DRONE_CAM = True
 
 # IP address of the connected android device
-VIDEO_SOURCE = 0 #"192.168.137.8"
+VIDEO_SOURCE = "10.0.0.4"
 
 # Save folder
-SAVE_PATH = 'Testing Images/1'
+SAVE_PATH = 'Testing Images/5'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 150
+MAX_IMAGES = 10
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 750
+WAIT_TIME = 3000
 
-# Scale the image for display:
+# Scale the image (for display only):
 SCALE_FACTOR = 0.5
 
 # Mirror the image on display.

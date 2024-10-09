@@ -6,15 +6,15 @@ from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/5'
+PATH_IMAGES = 'Testing Images/4'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 0.5
+IMAGE_SCALE = 0.75
 
 # outliers removing params:
-min_neighbors, neighbor_dist = 5, 1
+min_neighbors, neighbor_dist = 7, 0.5
 
 SHOW_MATCHES = False
 
@@ -37,7 +37,7 @@ for i, frame in enumerate(images):
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
-    # print(f"R{i}: \n{R}\n")
+    print(f"R{i}: \n{R}\n")
     print(f"t{i}: {t.reshape(3)}\n")
     plot_position.plot_position_heading(R, t)
     
@@ -47,10 +47,11 @@ for i, frame in enumerate(images):
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
-    if i%8 == 0:
+    if i%10 == 0:
         print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
         mapping.remove_outliers(min_neighbors, neighbor_dist)
         print(f"****num points after: {len(mapping._map3d.pts)}\n")
+        # Utils.draw_3d_cloud(mapping._map3d.pts)
 
 print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
 mapping.remove_outliers(min_neighbors, neighbor_dist)
