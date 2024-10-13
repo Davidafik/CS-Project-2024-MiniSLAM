@@ -1,17 +1,17 @@
 import cv2
 import numpy as np
-from MiniSLAM import Mapping
+from MiniSLAM import MiniSLAM
 from Calibration import Calibration
 from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/4'
+PATH_IMAGES = 'Testing Images/5'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 0.75
+IMAGE_SCALE = 1
 
 # outliers removing params:
 min_neighbors, neighbor_dist = 7, 0.5
@@ -21,7 +21,7 @@ SHOW_MATCHES = False
 np.set_printoptions(precision=3, suppress=True)
 
 calib = Calibration(PATH_CALIB)
-mapping = Mapping(calib.getIntrinsicMatrix(), calib.getExtrinsicMatrix(), add_new_pts=True)
+slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), add_new_pts=True)
 # mapping.load(f"{PATH_IMAGES}/map.npy")
 
 images = Utils.read_images(PATH_IMAGES, IMAGE_SCALE)
@@ -32,7 +32,7 @@ plot_position = Utils.plot_position()
 prevFrameDetails = None
 for i, frame in enumerate(images):
     print(f"{i}:")
-    frame_details = mapping.process_frame(frame)
+    frame_details = slam.process_frame(frame)
     # Utils.drawKeyPoints(frame, frame_details.kp)
     if frame_details is None:
         continue
@@ -42,33 +42,33 @@ for i, frame in enumerate(images):
     plot_position.plot_position_heading(R, t)
     
     if SHOW_MATCHES and i > 0:
-        Utils.drawMatches(images[i-1], frame, prevFrameDetails.kp, frame_details.kp, mapping._matches, numDraw = 500)
+        Utils.drawMatches(images[i-1], frame, prevFrameDetails.kp, frame_details.kp, slam._matches, numDraw = 500)
     prevFrameDetails = frame_details
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
     if i%10 == 0:
-        print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
-        mapping.remove_outliers(min_neighbors, neighbor_dist)
-        print(f"****num points after: {len(mapping._map3d.pts)}\n")
+        print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
+        slam.remove_outliers(min_neighbors, neighbor_dist)
+        print(f"****num points after: {len(slam._map3d.pts)}\n")
         # Utils.draw_3d_cloud(mapping._map3d.pts)
 
-print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
-mapping.remove_outliers(min_neighbors, neighbor_dist)
-print(f"****num points after: {len(mapping._map3d.pts)}\n")
+print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
+slam.remove_outliers(min_neighbors, neighbor_dist)
+print(f"****num points after: {len(slam._map3d.pts)}\n")
 
-mapping.save(f"{PATH_IMAGES}/map.npy")
+slam.save(f"{PATH_IMAGES}/map.npy")
 # mapping.load(f"{PATH_IMAGES}/map.npy")
 
 
 # cv2.destroyAllWindows()
 
 print("*"*50)
-print(f"3d_pts shape: {mapping._map3d.pts.shape}\n")
+print(f"3d_pts shape: {slam._map3d.pts.shape}\n")
 # print(f"ts: \n{ts}, \nshape {ts.shape}\n")
 # print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
-Utils.draw_3d_cloud(mapping._map3d.pts)
+Utils.draw_3d_cloud(slam._map3d.pts)
 # Utils.draw_3d_cloud(mapping._map3d.pts, ts)
 
 

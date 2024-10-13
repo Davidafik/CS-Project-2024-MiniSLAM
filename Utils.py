@@ -2,6 +2,7 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from Position import Position
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -146,6 +147,8 @@ class plot_position:
     def __init__(self):
         self.fig, self.ax = plt.subplots()
         self.count = 1
+        self.ax.grid(True)
+        self.ax.axis('equal')
         
     def plot_position_heading(self, R: np.ndarray, t: np.ndarray):
         """
@@ -158,8 +161,7 @@ class plot_position:
         # Clear the previous plot
         # self.ax.clear()
         
-        self.ax.grid(True)
-        self.ax.axis('equal')
+        
         c = -R.T @ t
         # c = -np.linalg.inv(R) @ t
         x, z = c[0, 0], c[2, 0]
@@ -169,6 +171,41 @@ class plot_position:
         # FIX:
         # Plot the heading using the rotation matrix
         yaw = -np.arcsin(-R[2,0])
+        heading_x = np.sin(yaw)
+        heading_z = np.cos(yaw)
+        # self.ax.text(x+0.1, z, s=f"{180*yaw/np.pi:.1f}", color='red')
+        self.ax.arrow(x, z, heading_x, heading_z, 
+                    head_width=0.1, color='green', label='Heading')
+        
+        # Set plot title and labels
+        self.ax.set_title("2D Map - Current Position And Heading")
+        self.ax.set_xlabel("X")
+        self.ax.set_ylabel("Z")
+        
+        self.count += 1
+        plt.draw()
+        plt.pause(0.01)
+        
+    def plot_position_heading_new(self, pos:Position):
+        """
+        Plot the current position and heading on the 2D map.
+
+        Args:
+            R (np.ndarray): Rotation matrix (3x3).
+            t (np.ndarray): Translation vector (3x1).
+        """
+        # Clear the previous plot
+        # self.ax.clear()
+        
+        
+        x, z = pos.getX(), pos.getZ()
+
+        # Plot the current position
+        self.ax.text(x, z, s=self.count, color='blue')
+        
+        # FIX:
+        # Plot the heading using the rotation matrix
+        yaw = pos.getT()
         heading_x = np.sin(yaw)
         heading_z = np.cos(yaw)
         # self.ax.text(x+0.1, z, s=f"{180*yaw/np.pi:.1f}", color='red')

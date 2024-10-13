@@ -11,16 +11,16 @@ import VCS
 DRONE_CAM = True
 
 # IP address of the connected android device
-VIDEO_SOURCE = "10.0.0.4"
+VIDEO_SOURCE = "10.0.0.3"
 
 # Save folder
 SAVE_PATH = 'Testing Images/5'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 10
+MAX_IMAGES = 20
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 3000
+WAIT_TIME = 2000
 
 # Scale the image (for display only):
 SCALE_FACTOR = 0.5

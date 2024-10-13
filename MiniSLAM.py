@@ -3,7 +3,7 @@ import cv2
 from FrameDetails import FrameDetails
 from Map3D import Map3D
 
-class Mapping:
+class MiniSLAM:
     def __init__(self, K, distCoeffs = None, map_3d_path = None, add_new_pts: bool = True, max_std_new_pts: float = 2) -> None:
         self._K = K
         self._K_inv = np.linalg.inv(K)

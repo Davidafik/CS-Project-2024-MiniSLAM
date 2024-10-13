@@ -5,14 +5,14 @@ class Calibration:
     Camera Calibration object - holds the camera clibration data
     '''
 
-    def __init__(self, IntrinsicMatrix : np.ndarray, ExtrinsicMatrix : np.array):
+    def __init__(self, IntrinsicMatrix : np.ndarray, DistCoeffs : np.array):
         '''
         Constractor with defined matrix for the intrinsic data, and array for the extrinsic data.
         '''
 
         # Set the local variables
         self._camMatrix = np.copy(IntrinsicMatrix)
-        self._camDist = np.copy(ExtrinsicMatrix)
+        self._camDist = np.copy(DistCoeffs)
 
         return
     
@@ -36,8 +36,8 @@ class Calibration:
         return np.copy(self._camMatrix)
     
 
-    def getExtrinsicMatrix(self):
+    def getDistCoeffs(self):
         '''
-        Get extrinsic matrix of the camera calibration
+        Get distCoeffs of the camera calibration
         '''
         return np.copy(self._camDist)

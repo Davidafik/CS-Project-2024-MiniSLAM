@@ -2,8 +2,10 @@ import cv2
 import datetime
 from OpenDJI import OpenDJI
 import VCS
-from MiniSLAM import Mapping
+from MiniSLAM import MiniSLAM
 from Calibration import Calibration
+from Position import Position
+import threading
 import numpy as np
 import Utils
 
@@ -17,13 +19,13 @@ PATH_MAP = 'Testing Images/5/map.npy'
 DRONE_CAM = True
 
 # IP address of the connected android device / cv2 video source.
-VIDEO_SOURCE = "10.0.0.4"
+VIDEO_SOURCE = "10.0.0.3"
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 100
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 20
+WAIT_TIME = 200
 
 SCALE_READ = 0.7
 
@@ -38,9 +40,84 @@ MIRROR_DISPLAY = False
 # pressing this key will close the program.
 QUIT_KEY = 'q'
 
-CONTROL = True
+CONTROL = False
 
 ################################################################
+
+class Localizer:
+    def __init__(self, miniSlam: MiniSLAM, cam) -> None:
+        self._position = None
+        self._velocity = None
+        self._time = None
+        
+        self._miniSlam = miniSlam
+        self._camera = cam
+        
+        self._live = True
+
+        # Start thread to run in the background
+        self._thread = threading.Thread(target=self.__ReadAndProcess__, args=(), name="rtsp_read_thread")
+        self._thread.daemon = True
+        self._thread.start()
+    
+    def __ReadAndProcess__(self):
+        '''
+        read and process frames in the background.
+        '''
+        while self._live:
+            # print(f"pos: {self._position} \nvel: {self._velocity} \ntime: {self._time}")
+            ret, frame = self._camera.read()
+            time_frame = datetime.datetime.now()
+                 
+            # If no frame available - skip.
+            if not ret:
+                print ('Error retriving video stream')
+                self._position = None
+                self._velocity = None
+                self._time = None
+                cv2.waitKey(10)
+                continue
+
+            # Resize frame.
+            frame = cv2.resize(frame, dsize = None,
+                                fx = SCALE_READ,
+                                fy = SCALE_READ)
+                        
+            frame_details = self._miniSlam.process_frame(frame)
+                        
+            if frame_details is not None:
+                R, t = frame_details.R, frame_details.t
+                
+                c = (-R.T @ t).reshape(3)
+                        
+                # Calculate the angle on XZ plan - out theta
+                # theta = -np.arctan2(R[0,0], R[2,0])
+                theta = -np.arcsin(-R[2,0])
+                
+                pos = Position(c, theta)
+                if self._position is not None and self._time is not None:
+                    self._velocity = (pos - self._position) / (time_frame - self._time).total_seconds()
+                self._position = pos
+                self._time = time_frame
+                
+            else:
+                print ('Failed to localize frame')
+                self._position = None
+                self._velocity = None
+                self._time = None
+
+    def release(self):
+        '''
+        Stop the MiniSLAM thread.
+        '''
+        self._live = False
+        self._thread.join()
+        
+    def getPosition(self):
+        if self._position is not None and self._velocity is not None:
+            return self._position + self._velocity * (datetime.datetime.now() - self._time).total_seconds()
+        return self._position
+
 
 def put_text(frame, count):
     font = cv2.FONT_HERSHEY_COMPLEX
@@ -53,8 +130,8 @@ def put_text(frame, count):
 
 
 calib = Calibration(PATH_CALIB)
-mapping = Mapping(calib.getIntrinsicMatrix(), calib.getExtrinsicMatrix(), add_new_pts=False)
-mapping.load(PATH_MAP)
+slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), add_new_pts=False)
+slam.load(PATH_MAP)
 
 # print(f"***removing outliers. \n****num points before: {len(mapping._map3d.pts)}")
 # mapping.remove_outliers()
@@ -75,53 +152,23 @@ if DRONE_CAM:
 else:
     cam = VCS.VideoCapture(VIDEO_SOURCE)
 
-ts = np.empty((0,3), float)
 
 plot_position = Utils.plot_position()
+localizer = Localizer(slam, cam)
 
-# Count the number of frames.
-count = 0
-
-# Time of the last saved frame.
-last_frame = datetime.datetime.now()
-
-while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
-    # Get frame from the camera.
-    ret, frame = cam.read()
-
-    # If no frame available - skip.
-    if not ret:
-        print ('Error retriving video stream')
-        print(cam.move(0, 0, 0, 0, get_result=True))
-        continue
-
-    # Resize frame.
-    frame = cv2.resize(frame, dsize = None,
-                           fx = SCALE_READ,
-                           fy = SCALE_READ)
-    
-    count += 1
-    last_frame = datetime.datetime.now()
-    
-    print(f"{count}:")
-    frame_details = mapping.process_frame(frame)
-    # Utils.drawKeyPoints(frame, frame_details.kp)
-    
+while cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
     ascent, roll, pitch = 0, 0, 0
+    pos = localizer.getPosition()
     
-    if frame_details is not None:
-        R, t = frame_details.R, frame_details.t
-        print(f"R{count}: \n{R}\nt{count}: \n{t}\n")
-        plot_position.plot_position_heading(R, t)
+    if pos is not None:
+        print(f"{pos.getLocVec()}\n")
+        c, theta = pos.getLocVec(), pos.getT()
+        plot_position.plot_position_heading_new(pos)
         
-        c = (-R.T @ t) / 20
         ascent, roll, pitch = float(-c[1]), float(-c[0]), float(-c[2])
         pitch = min(0.005, max(-0.005, pitch))
         roll = min(0.005, max(-0.005, roll))
-        ascent = min(0.005, max(-0.005, ascent))
-        
-        ts = np.vstack((ts, t.T))
-        
+        ascent = min(0.005, max(-0.005, ascent))        
     
     # Send control command.
     if DRONE_CAM and CONTROL:
@@ -132,15 +179,22 @@ while count < MAX_IMAGES and cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
 
     # Display frame.
     if DISPLAY_IMAGE:
+        ret, frame = cam.read()
+        if not ret:
+            continue
         frame = cv2.resize(frame, dsize = None, fx = SCALE_DISPLAY, fy = SCALE_DISPLAY)
         if MIRROR_DISPLAY:
             frame = cv2.flip(frame, 1)
-        frame = put_text(frame, count)
+        frame = put_text(frame, 0)
         cv2.imshow("frame", frame)
-    
-# cv2.destroyAllWindows()
+
 print(cam.move(0, 0, 0, 0, get_result=True))
 print(cam.disableControl(True))
+
+localizer.release()
+
+if DISPLAY_IMAGE:
+    cv2.destroyAllWindows()
 
 print("*"*70)
 # print(f"3d_pts: \n{mapping._map3d.pts}, \nshape {mapping._map3d.pts.shape}\n")
