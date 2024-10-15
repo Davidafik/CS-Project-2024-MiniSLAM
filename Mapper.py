@@ -11,7 +11,7 @@ PATH_IMAGES = 'Testing Images/5'
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 1
+IMAGE_SCALE = 0.7
 
 # outliers removing params:
 min_neighbors, neighbor_dist = 7, 0.5
@@ -27,7 +27,7 @@ slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), add_new_pts=T
 images = Utils.read_images(PATH_IMAGES, IMAGE_SCALE)
 Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
 
-plot_position = Utils.plot_position()
+plot_position = Utils.Plot_position()
 
 prevFrameDetails = None
 for i, frame in enumerate(images):

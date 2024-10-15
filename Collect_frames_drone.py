@@ -11,7 +11,7 @@ import VCS
 DRONE_CAM = True
 
 # IP address of the connected android device
-VIDEO_SOURCE = "10.0.0.3"
+VIDEO_SOURCE = "10.0.0.6"
 
 # Save folder
 SAVE_PATH = 'Testing Images/5'

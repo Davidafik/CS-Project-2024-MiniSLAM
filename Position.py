@@ -20,12 +20,12 @@ class Position:
         self._z = position[2]
         self._t = theta
     
-    # Get 4D vector with the position data
     def getPosVec(self) -> np.ndarray:
+        """ Get 4D vector with the position data [x, y, z, theta] """
         return np.array([self._x, self._y, self._z, self._t])
      
-    # Get 3D vector with the location data
     def getLocVec(self) -> np.ndarray:
+        """ Get 3D vector with the location data [x, y, z] """
         return np.array([self._x, self._y, self._z])
     
     # Get the X coordinate (in cm)

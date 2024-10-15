@@ -31,6 +31,16 @@ def read_images(folder_path: str, size : float = 0.25):
     
     return images
 
+def put_text(frame, count, quit_key = 'q'):
+    font = cv2.FONT_HERSHEY_COMPLEX
+    
+    text = f"{count} frames read"
+    frame = cv2.putText(frame, text, (5, 30), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
+    
+    text = f"Press '{quit_key}' to quit"
+    return cv2.putText(frame, text, (5, 60), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
+
+
 def plot2images(image1 : np.ndarray, image2 : np.ndarray, title: str = '', figsize: tuple = (12, 4)) -> None:
     """
     Plots two images using matplotlib.
@@ -143,7 +153,7 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
     plt.title('3D Point Cloud')
     plt.show()
     
-class plot_position:
+class Plot_position:
     def __init__(self):
         self.fig, self.ax = plt.subplots()
         self.count = 1
@@ -196,7 +206,8 @@ class plot_position:
         """
         # Clear the previous plot
         # self.ax.clear()
-        
+        if pos is None:
+            return
         
         x, z = pos.getX(), pos.getZ()
 
@@ -205,7 +216,7 @@ class plot_position:
         
         # FIX:
         # Plot the heading using the rotation matrix
-        yaw = pos.getT()
+        yaw = np.deg2rad(pos.getT())
         heading_x = np.sin(yaw)
         heading_z = np.cos(yaw)
         # self.ax.text(x+0.1, z, s=f"{180*yaw/np.pi:.1f}", color='red')
