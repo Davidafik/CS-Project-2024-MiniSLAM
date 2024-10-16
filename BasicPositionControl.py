@@ -11,7 +11,7 @@ class BasicPositionControl (PositionControl):
     def __init__(
             self, 
             RClimit: np.ndarray = np.array([0.05, 0.05, 0.05, 0.05]),
-            errWeights: np.ndarray = np.array([0.1, 0., 0.1, 0.1]),
+            errWeights: np.ndarray = np.array([0.01, 0., 0.01, 0.1]),
             errMargin: np.ndarray = np.array([1.0, 1.0, 1.0, 2.0])
         ) -> None:
         """

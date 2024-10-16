@@ -18,13 +18,15 @@ PATH_MAP = 'Testing Images/5/map.npy'
 DRONE_CAM = True
 
 # IP address of the connected android device / cv2 video source.
-VIDEO_SOURCE = "10.0.0.6"
+VIDEO_SOURCE = "192.168.137.214"
 
 # # Maximum number of images the program will take.
 # MAX_IMAGES = 100
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
 WAIT_TIME = 200
+
+okError = 0.25
 
 SCALE_READ = 0.7
 
@@ -39,7 +41,17 @@ MIRROR_DISPLAY = False
 # pressing this key will close the program.
 QUIT_KEY = 'q'
 
+# take off and control the drone?
 CONTROL = True
+
+
+targets = [
+    [0,  0, 0],
+    [0,  0,-3],
+    [3,  0,-3],
+    [3,  0, 0],
+    [0,  0, 0],
+]
 
 ################################################################
 
@@ -54,45 +66,56 @@ slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), map_3d_path=P
 # Utils.draw_3d_cloud(slam._map3d.pts)
 
 plot_position = Utils.Plot_position()
-localizer = Localizer(slam, cam, scale_image=SCALE_READ)
 
 if CONTROL:
     control = Control()
-    control.setLookDirection(Position([0, 0, 1e4]))
+    control.setLookDirection(Position([0, 0, 1e1]))
     control.setTarget(Position([0,0,0]))
     
+
     # take off.
     take_off = ""
     while take_off != "success":
         take_off = cam.takeoff(True)
-        print(take_off)
-        cv2.waitKey(300)
-    cv2.waitKey(5000)
+        print(f"attempt take-off: {take_off}")
+        cv2.waitKey(500)
+    cv2.waitKey(6000)
     print(f"enable: {cam.enableControl(get_result=True)}")
-        
+
+localizer = Localizer(slam, cam, scale_image=SCALE_READ)
+
 # Control loop.
-while cv2.waitKey(WAIT_TIME) != ord(QUIT_KEY):
-    curr_pos = localizer.getPosition()
-    print(curr_pos)
-    
-    plot_position.plot_position_heading_new(curr_pos)
+
+# move the drone along the path.
+for target in targets:
+    # set the next point in the path as the new target.
+    control.setTarget(Position(target))
+
+    # keep advancing toward the target until you get small enough error.
+    while control.getError() > okError and cv2.waitKey(WAIT_TIME) is not ord(QUIT_KEY):
+        print("error: ", control.getError())
         
-    # Send control command.
-    if DRONE_CAM and CONTROL:
-        LR,DU,BF,RCW = control.getRCVector(curr_pos)
-        print(f'rc {RCW:.2f} {DU:.2f} {LR:.2f} {BF:.2f}')
-        print(cam.move(RCW, DU, LR, BF, get_result=True))
+        curr_pos = localizer.getPosition()
+        print(curr_pos)
+        
+        plot_position.plot_position_heading_new(curr_pos)
             
-    # Display frame.
-    if DISPLAY_IMAGE:
-        ret, frame = cam.read()
-        if not ret:
-            continue
-        frame = cv2.resize(frame, dsize = None, fx = SCALE_DISPLAY, fy = SCALE_DISPLAY)
-        if MIRROR_DISPLAY:
-            frame = cv2.flip(frame, 1)
-        frame = Utils.put_text(frame, 0, QUIT_KEY)
-        cv2.imshow("frame", frame)
+        # Send control command.
+        if DRONE_CAM and CONTROL:
+            LR,DU,BF,RCW = control.getRCVector(curr_pos)
+            print(f'rc {RCW:.2f} {DU:.2f} {LR:.2f} {BF:.2f}')
+            print(cam.move(RCW, DU, LR, BF, get_result=True))
+                
+        # Display frame.
+        if DISPLAY_IMAGE:
+            ret, frame = cam.read()
+            if not ret:
+                continue
+            frame = cv2.resize(frame, dsize = None, fx = SCALE_DISPLAY, fy = SCALE_DISPLAY)
+            if MIRROR_DISPLAY:
+                frame = cv2.flip(frame, 1)
+            frame = Utils.put_text(frame, 0, QUIT_KEY)
+            cv2.imshow("frame", frame)
 
 localizer.release()
 
@@ -108,5 +131,4 @@ print("*"*70)
 # print(f"ts: \n{ts}, \nshape {ts.shape}\n")
 
 # Utils.draw_3d_cloud(mapping._map3d.pts, ts)
-
 

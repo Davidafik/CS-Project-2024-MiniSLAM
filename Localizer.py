@@ -57,7 +57,11 @@ class Localizer:
                 R, t = frame_details.R, frame_details.t
                 
                 c = (-R.T @ t).reshape(3)
-                        
+                
+                if self._position is not None and np.linalg.norm(c - self._position.getLocVec()) > 6:
+                    self._position = None
+                    return
+                
                 # Calculate the angle on XZ plan - out theta
                 # theta = -np.arctan2(R[0,0], R[2,0])
                 theta = np.rad2deg(-np.arcsin(-R[2,0]))
@@ -65,7 +69,9 @@ class Localizer:
                 pos = Position(c, theta)
                 if self._position is not None and self._time is not None:
                     self._velocity = (pos - self._position) / (time_frame - self._time).total_seconds()
-                self._position = pos
+                    self._position = self._position * 0.15 + pos * 0.85
+                else:
+                    self._position = pos
                 self._time = time_frame
                 
             else:
@@ -82,7 +88,7 @@ class Localizer:
         self._thread.join()
         
     def getPosition(self):
-        if self._position is not None and self._velocity is not None:
-            return self._position + self._velocity * (datetime.datetime.now() - self._time).total_seconds()
+        # if self._position is not None and self._velocity is not None:
+        #     return self._position + self._velocity * (datetime.datetime.now() - self._time).total_seconds()
         return self._position
 
