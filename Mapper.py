@@ -6,38 +6,38 @@ from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/5'
+PATH_IMAGES = 'Testing Images/7'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 0.7
+IMAGE_SCALE = 0.9
 
 # outliers removing params:
-min_neighbors, neighbor_dist = 7, 0.5
+min_neighbors, neighbor_dist, min_dist = 7, 0.6, 0.01
 
 SHOW_MATCHES = False
 
 np.set_printoptions(precision=3, suppress=True)
 
 calib = Calibration(PATH_CALIB)
-slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), add_new_pts=True)
+slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), add_new_pts=True, max_std_new_pts=5)
 # mapping.load(f"{PATH_IMAGES}/map.npy")
 
 images = Utils.read_images(PATH_IMAGES, IMAGE_SCALE)
 Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
 
-plot_position = Utils.Plot_position()
+plot_position = Utils.PlotPosition()
 
 prevFrameDetails = None
-for i, frame in enumerate(images):
+for i, frame in enumerate(images, 1):
     print(f"{i}:")
     frame_details = slam.process_frame(frame)
     # Utils.drawKeyPoints(frame, frame_details.kp)
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
-    print(f"R{i}: \n{R}\n")
+    # print(f"R{i}: \n{R}\n")
     print(f"t{i}: {t.reshape(3)}\n")
     plot_position.plot_position_heading(R, t)
     
@@ -47,14 +47,14 @@ for i, frame in enumerate(images):
 
     # Rs = np.vstack((Rs, R.reshape((1,3,3))))
     ts = np.vstack((ts, t.T))
-    if i%10 == 0:
+    if i%4 == 0:
         print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
-        slam.remove_outliers(min_neighbors, neighbor_dist)
+        slam.remove_outliers(min_neighbors, neighbor_dist, min_dist)
         print(f"****num points after: {len(slam._map3d.pts)}\n")
         # Utils.draw_3d_cloud(mapping._map3d.pts)
 
 print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
-slam.remove_outliers(min_neighbors, neighbor_dist)
+slam.remove_outliers(min_neighbors, neighbor_dist, min_dist)
 print(f"****num points after: {len(slam._map3d.pts)}\n")
 
 slam.save(f"{PATH_IMAGES}/map.npy")
@@ -69,6 +69,6 @@ print(f"3d_pts shape: {slam._map3d.pts.shape}\n")
 # print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
 Utils.draw_3d_cloud(slam._map3d.pts)
-# Utils.draw_3d_cloud(mapping._map3d.pts, ts)
+# Utils.draw_3d_cloud(slam._map3d.pts, ts)
 
 

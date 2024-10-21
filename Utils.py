@@ -3,8 +3,19 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from Position import Position
+from OpenDJI import OpenDJI
 
 np.set_printoptions(precision=3, suppress=True)
+
+def attempt_take_off(drone: OpenDJI, waitTime: int = 500):
+    while True:
+        results = drone.takeoff(get_result=True)
+        if results == "success":
+            cv2.waitKey(6000)
+            break
+        print(f"attempt take-off: {results}")
+        cv2.waitKey(waitTime)
+    print(f"enable: {drone.enableControl(get_result=True)}")
 
 def read_images(folder_path: str, size : float = 0.25):
     # List all files in the folder
@@ -153,7 +164,7 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
     plt.title('3D Point Cloud')
     plt.show()
     
-class Plot_position:
+class PlotPosition:
     def __init__(self):
         self.fig, self.ax = plt.subplots()
         self.count = 1

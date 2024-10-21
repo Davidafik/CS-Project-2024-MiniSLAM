@@ -11,17 +11,17 @@ import VCS
 DRONE_CAM = True
 
 # IP address of the connected android device
-# VIDEO_SOURCE = "10.0.0.6"
-VIDEO_SOURCE = "192.168.137.223"
+VIDEO_SOURCE = "10.0.0.4"
+# VIDEO_SOURCE = "10.0.0.2"
 
 # Save folder
-SAVE_PATH = 'Testing Images/5'
+SAVE_PATH = 'Testing Images/7'
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 20
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 2000
+WAIT_TIME = 3000
 
 # Scale the image (for display only):
 SCALE_FACTOR = 0.5
@@ -40,6 +40,12 @@ def put_text(frame, count):
     text = f"{count} frames saved"
     frame = cv2.putText(frame, text, (5, 30), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
     
+    # draw a cross in the middle of the image.
+    height = frame.shape[0]
+    width = frame.shape[1]
+    frame = cv2.line(frame, [0,height//2], [width, height//2], [0,255,255], 1)
+    frame = cv2.line(frame, [width//2,0], [width//2, height], [0,255,255], 1)
+
     text = f"Press '{QUIT_KEY}' to quit"
     return cv2.putText(frame, text, (5, 60), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
     

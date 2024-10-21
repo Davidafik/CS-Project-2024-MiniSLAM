@@ -34,7 +34,7 @@ class Map3D:
     def isEmpty(self):
         return len(self.pts) == 0
     
-    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5):
+    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5, min_dist = 0.005):
         if self.isEmpty():
             return
         
@@ -50,8 +50,8 @@ class Map3D:
             # Remove points that are too close to each other. *I dont think it works well*.
             closest_idx = np.argpartition(dist, 1)[1]
             closest_dist = dist[closest_idx]
-            # if  closest_idx < i and closest_dist < 0.01:
-            #     pts_idxs[i] = False
+            if  closest_idx < i and closest_dist < min_dist:
+                pts_idxs[i] = False
             
         self.pts = self.pts[pts_idxs]
         self.dsc = self.dsc[pts_idxs]

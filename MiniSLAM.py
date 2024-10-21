@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from FrameDetails import FrameDetails
 from Map3D import Map3D
+import copy
 
 class MiniSLAM:
     def __init__(self, K, distCoeffs = None, map_3d_path = None, add_new_pts: bool = True, max_std_new_pts: float = 2) -> None:
@@ -9,7 +10,11 @@ class MiniSLAM:
         self._K_inv = np.linalg.inv(K)
         self._distCoeffs = distCoeffs
         
-        self._feature_detector = cv2.SIFT_create()
+        self._feature_detector = cv2.SIFT_create(nfeatures=0,
+                                                 nOctaveLayers=3,
+                                                 contrastThreshold=0.04,
+                                                 edgeThreshold=10,
+                                                 sigma=1.6)
         self._matcher = cv2.BFMatcher()
         
         self._map3d = Map3D(map_3d_path)
@@ -24,7 +29,25 @@ class MiniSLAM:
                 
     def save(self, map3dPath: str):
         self._map3d.save(map3dPath)
-            
+    
+    def set_brightness_contrast(image : np.ndarray, a : float, b : float) -> np.ndarray:
+        """
+        apply brightness adjustments and contrast stretching to an image.
+
+        Args:
+            image (np.ndarray): the image to adjust.
+            a (float): the contrast stretching parameter
+            b (float): the brightness adjustment parameter
+
+        Returns:
+            np.ndarray: the adjusted image.
+        """
+        mean = image.mean()
+        # stretched = a * image + ((1 - a) * mean + b)
+        stretched = a * (image - mean) + mean + b
+        
+        return np.uint8(np.clip(stretched, 0, 255))
+
     def process_frame(self, new_frame : np.ndarray) -> FrameDetails:
         """
         Processes a new frame by detecting keypoints, computing descriptors, and updating the map
@@ -39,6 +62,10 @@ class MiniSLAM:
         """
         # Convert the current RGB frame to grayscale, as the SIFT detector operates on single-channel images.
         gray_new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2GRAY)
+        
+        gray_new_frame = MiniSLAM.set_brightness_contrast(gray_new_frame, 2.5, 20)
+        # cv2.imshow("", gray_new_frame)
+        # cv2.waitKey(500)
 
         # Detect keypoints and compute descriptors using SIFT on the grayscale image.
         kp, dsc = self._feature_detector.detectAndCompute(gray_new_frame, None)
@@ -170,20 +197,26 @@ class MiniSLAM:
 
         # Extract the corresponding 2D points from the current frame's keypoints based on the matched descriptors.
         pts_2d_curr = np.array([frame_details_curr.kp[m.trainIdx].pt for m in matches_3d_curr], dtype=np.float64)
+        
+        if self._frame_details_prev is not None:
+            rvec_prev, tvec_prev = cv2.Rodrigues(self._frame_details_prev.R)[0], copy.deepcopy(self._frame_details_prev.t)
+        else:
+             rvec_prev, tvec_prev = None, None
 
         try:
             # Solve the PnP problem using RANSAC to estimate the rotation (rvec) and translation (t) of the camera.
             success, rvec, t, _ = cv2.solvePnPRansac(
-                objectPoints=pts_3d,              # 3D points in the global map
-                imagePoints=pts_2d_curr,          # Corresponding 2D points in the current frame
-                cameraMatrix=self._K,             # Intrinsic camera matrix
-                distCoeffs=self._distCoeffs,      # Distortion coefficients of the camera
-                flags=cv2.SOLVEPNP_ITERATIVE,     # Method for solving PnP
-                confidence=0.8,                 # Confidence level for RANSAC
-                # reprojectionError=0.8,            # Maximum allowed reprojection error
-                # rvec=cv2.Rodrigues(self._frame_details_prev.R)[0],
-                # tvec=self._frame_details_prev.t,
-                # useExtrinsicGuess=True
+                objectPoints=pts_3d,              # 3D points in the global map.
+                imagePoints=pts_2d_curr,          # Corresponding 2D points in the current frame.
+                cameraMatrix=self._K,             # Intrinsic camera matrix.
+                distCoeffs=self._distCoeffs,      # Distortion coefficients of the camera.
+                flags=cv2.SOLVEPNP_ITERATIVE,     # Method for solving PnP.
+                # confidence=0.9,                 # Confidence level for RANSAC.
+                # reprojectionError=0.999,        # Maximum allowed reprojection error.
+                rvec=rvec_prev,                   # Initial guess for rotation - the previous frame's rotation.
+                tvec=tvec_prev,                   # Initial guess for translation - the previous frame's translation.
+                useExtrinsicGuess=rvec_prev is not None,           # Use the given guess.
+                iterationsCount=30                # Number of RANSAC iterations.
             )
         
         except ValueError:
@@ -443,22 +476,14 @@ class MiniSLAM:
         return E
     
     def _get_inliers_from_essential(self, pts1, pts2, E, threshold=1e-2):
-        F = self._K_inv.T @ E @ self._K_inv
-        # # print(f"F: \n{F/F[2,2]}")
-        
-        # F_feat, _ = cv2.findFundamentalMat(pts1, pts2, cv2.RANSAC, 0.9, 0.999, 100)
-        # # print(f"F feat: \n{F_feat}")
-        
-        # print(f"diff F: \n{F/F[2,2] - F_feat}")
-        
-        # F = 0.5*F/F[2,2] + 0.5*F_feat
-        # # print(f"F avg: \n{F}")
-        
         pts1 = np.hstack((pts1, np.ones((len(pts1), 1))))
         pts2 = np.hstack((pts2, np.ones((len(pts2), 1))))
 
+        F = self._K_inv.T @ E @ self._K_inv
+        # print(f"F: \n{F/F[2,2]}")
+
         epipolar_constraint = np.abs(np.sum(pts2.T * (F @ pts1.T), axis=0))
-        
+
         return epipolar_constraint < threshold
     
     def _filter_matches_new_pts(self, frame_details_curr: FrameDetails, matches_prev_curr: np.ndarray, matches_3d: np.ndarray) -> np.ndarray:
@@ -509,7 +534,7 @@ class MiniSLAM:
         # Retain only the matches that passed the epipolar constraint test.
         return np.array([match for match, accepted in zip(matches_prev_curr, mask) if accepted])
 
-    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5):
+    def remove_outliers(self, min_neighbors = 3, neighbor_dist = 0.5, min_dist = 0.005):
         self._map3d.remove_outliers(min_neighbors, neighbor_dist)
         
                     
