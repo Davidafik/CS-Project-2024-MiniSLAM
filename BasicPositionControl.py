@@ -10,7 +10,7 @@ class BasicPositionControl (PositionControl):
     """
     def __init__(
             self, 
-            RClimit: np.ndarray = np.array([0.04, 0.04, 0.04, 0.04]),
+            RClimit: np.ndarray = np.array([0.02, 0.02, 0.02, 0.02]),
             errWeights: np.ndarray = np.array([0.05, 0., 0.05, 0.1]),
             errMargin: np.ndarray = np.array([1.0, 1.0, 1.0, 2.0])
         ) -> None:
@@ -29,6 +29,7 @@ class BasicPositionControl (PositionControl):
         self._RClimit = RClimit
         self._errGrad = errWeights
         self._errMargin = errMargin
+        self._prevPos = None
 
     def getRCVector(self, currPos : Position) -> tuple[np.ndarray, float]:
         """
@@ -43,7 +44,11 @@ class BasicPositionControl (PositionControl):
         if currPos is None:
             self._error = np.inf
             return np.zeros(4)
-
+        
+        if currPos == self._prevPos:
+            return np.zeros(4)
+        self._prevPos = currPos
+        
         # get the translation and angle error.
         errorVec = self._calcErrorVec(currPos) # (LR, DU, BF, RCW)
 

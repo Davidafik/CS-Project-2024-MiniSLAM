@@ -47,10 +47,10 @@ class Map3D:
             if num_neighbors < min_neighbors:
                 pts_idxs[i] = False
 
-            # Remove points that are too close to each other. *I dont think it works well*.
+            # Remove points that are too close to each other.
             closest_idx = np.argpartition(dist, 1)[1]
             closest_dist = dist[closest_idx]
-            if  closest_idx < i and closest_dist < min_dist:
+            if  closest_idx > i and closest_dist < min_dist:
                 pts_idxs[i] = False
             
         self.pts = self.pts[pts_idxs]

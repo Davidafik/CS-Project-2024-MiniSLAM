@@ -42,11 +42,13 @@ class Localizer:
                 self._time = None
                 cv2.waitKey(10)
                 continue
-
+            
             # Resize frame.
             frame = cv2.resize(frame, dsize = None,
                                 fx = self.scale_image,
                                 fy = self.scale_image)
+            cv2.imshow("", frame)
+            cv2.waitKey(10)
                         
             frame_details = self._miniSlam.process_frame(frame)
                         
@@ -93,8 +95,8 @@ class Localizer:
         self._thread.join()
         
     def getPosition(self):
-        if self._position is not None and self._velocity is not None:
-            return self._position + self._velocity * (datetime.datetime.now() - self._time).total_seconds() * 0.3
+        # if self._position is not None and self._velocity is not None:
+        #     return self._position + self._velocity * (datetime.datetime.now() - self._time).total_seconds() * 0.3
         return self._position
 
 #test#
@@ -107,7 +109,7 @@ if __name__ == "__main__":
     ####################### Input Parameters #######################
 
     PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-    PATH_MAP = 'Testing Images/7/map.npy'
+    PATH_MAP = 'Testing Images/5/map.npy'
 
     # True if you taking the images with the mini 3 pro.
     DRONE_CAM = True
@@ -118,7 +120,7 @@ if __name__ == "__main__":
     # Time to wait between 2 consecutive frame savings (in miliseconds)
     WAIT_TIME = 100
 
-    SCALE_READ = 0.8
+    SCALE_READ = 0.9
 
     DISPLAY_IMAGE = False
 
@@ -147,12 +149,12 @@ if __name__ == "__main__":
         
     ########################## Main Loop ##########################
 
-    while not keyboard.is_pressed(QUIT_KEY):        
+    while not keyboard.is_pressed(QUIT_KEY):
         curr_pos = localizer.getPosition()
         print(curr_pos)
         
         plot_position.plot_position_heading_new(curr_pos)
-            
+
         # Display frame.
         if DISPLAY_IMAGE:
             ret, frame = cam.read()

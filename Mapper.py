@@ -6,15 +6,15 @@ from FrameDetails import FrameDetails
 import Utils
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/7'
+PATH_IMAGES = 'Testing Images/5'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 0.9
+IMAGE_SCALE = 1
 
 # outliers removing params:
-min_neighbors, neighbor_dist, min_dist = 7, 0.6, 0.01
+min_neighbors, neighbor_dist, min_dist = 10, 0.6, 0.04
 
 SHOW_MATCHES = False
 
@@ -54,7 +54,7 @@ for i, frame in enumerate(images, 1):
         # Utils.draw_3d_cloud(mapping._map3d.pts)
 
 print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
-slam.remove_outliers(min_neighbors, neighbor_dist, min_dist)
+slam.remove_outliers(min_neighbors, neighbor_dist, 0.1)
 print(f"****num points after: {len(slam._map3d.pts)}\n")
 
 slam.save(f"{PATH_IMAGES}/map.npy")

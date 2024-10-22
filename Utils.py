@@ -7,15 +7,21 @@ from OpenDJI import OpenDJI
 
 np.set_printoptions(precision=3, suppress=True)
 
-def attempt_take_off(drone: OpenDJI, waitTime: int = 500):
+def take_off(drone: OpenDJI, waitTime: int = 500):
     while True:
         results = drone.takeoff(get_result=True)
         if results == "success":
-            cv2.waitKey(6000)
             break
         print(f"attempt take-off: {results}")
         cv2.waitKey(waitTime)
-    print(f"enable: {drone.enableControl(get_result=True)}")
+    
+def enable_control(drone: OpenDJI, waitTime: int = 500):
+    while True:
+        results = drone.enableControl(get_result=True)
+        if results == "success":
+            break
+        print(f"attempt enable-control: {results}")
+        cv2.waitKey(waitTime)
 
 def read_images(folder_path: str, size : float = 0.25):
     # List all files in the folder

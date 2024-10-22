@@ -15,10 +15,10 @@ VIDEO_SOURCE = "10.0.0.4"
 # VIDEO_SOURCE = "10.0.0.2"
 
 # Save folder
-SAVE_PATH = 'Testing Images/7'
+SAVE_PATH = 'Testing Images/5'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 20
+MAX_IMAGES = 15
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
 WAIT_TIME = 3000
@@ -63,6 +63,8 @@ else:
 
 # Count the number of frames.
 count = 0
+
+cv2.waitKey(3000)
 
 # Time of the last saved frame.
 last_saved_frame = datetime.datetime.now()

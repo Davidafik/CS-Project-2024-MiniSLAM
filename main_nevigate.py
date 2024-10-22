@@ -27,7 +27,7 @@ WAIT_TIME = 50
 OK_ERROR = 0.25
 
 # Scale the image for faster localization.
-SCALE_READ = 0.7
+SCALE_READ = 0.8
 
 DISPLAY_IMAGE = False
 
@@ -39,7 +39,8 @@ QUIT_KEY = 'q'
 
 
 targets = [
-    [3.5,  0, -2],
+    [-1,  0, -1],
+    [0,  0, 0],
     # [0,  0,-3],
     # [3,  0,-3],
     # [3,  0, 0],
@@ -59,11 +60,15 @@ pos_plotter = Utils.PlotPosition()
 
 control = Control()
 control.setLookDirection(Position([0, 0, 1e1]))
-
-localizer = Localizer(slam, drone, scale_image=SCALE_READ)
     
 if TAKE_OFF:
-    Utils.attempt_take_off(drone)
+    Utils.take_off(drone)
+    cv2.waitKey(3000)
+    Utils.enable_control(drone)
+
+localizer = Localizer(slam, drone, scale_image=SCALE_READ)
+cv2.waitKey(1000)
+
     
 ########################## Main Loop ##########################
 
@@ -104,8 +109,8 @@ localizer.release()
 
 if TAKE_OFF:
     # return the control to the remote controller.
-    print(drone.move(0, 0, 0, 0, get_result=True))
-    print(drone.disableControl(get_result=True))
+    print(f"stop: {drone.move(0, 0, 0, 0, get_result=True)}")
+    print(f"diable control: {drone.disableControl(get_result=True)}")
 
 if DISPLAY_IMAGE:
     cv2.destroyAllWindows()

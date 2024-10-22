@@ -10,11 +10,12 @@ class MiniSLAM:
         self._K_inv = np.linalg.inv(K)
         self._distCoeffs = distCoeffs
         
-        self._feature_detector = cv2.SIFT_create(nfeatures=0,
-                                                 nOctaveLayers=3,
-                                                 contrastThreshold=0.04,
-                                                 edgeThreshold=10,
+        self._feature_detector = cv2.SIFT_create(nfeatures=3000,
+                                                 nOctaveLayers=2,
+                                                 contrastThreshold=0.05,
+                                                 edgeThreshold=8,
                                                  sigma=1.6)
+        
         self._matcher = cv2.BFMatcher()
         
         self._map3d = Map3D(map_3d_path)
@@ -63,7 +64,7 @@ class MiniSLAM:
         # Convert the current RGB frame to grayscale, as the SIFT detector operates on single-channel images.
         gray_new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2GRAY)
         
-        gray_new_frame = MiniSLAM.set_brightness_contrast(gray_new_frame, 2.5, 20)
+        # gray_new_frame = MiniSLAM.set_brightness_contrast(gray_new_frame, 2.5, 20)
         # cv2.imshow("", gray_new_frame)
         # cv2.waitKey(500)
 
@@ -354,7 +355,7 @@ class MiniSLAM:
 
         # Apply Lowe's Ratio Test to retain only good matches.
         for m, n in allMatches:
-            if m.distance < 0.8 * n.distance:
+            if m.distance < 0.65 * n.distance:
                 matches.append(m)
 
         # # Sort the matches by their distance to prioritize the closest matches.
