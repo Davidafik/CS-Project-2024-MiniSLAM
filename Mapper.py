@@ -4,14 +4,15 @@ from MiniSLAM import MiniSLAM
 from Calibration import Calibration
 from FrameDetails import FrameDetails
 import Utils
+from Position import Position
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/5'
+PATH_IMAGES = 'Testing Images/6'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 1
+IMAGE_SCALE = 0.8
 
 # outliers removing params:
 min_neighbors, neighbor_dist, min_dist = 10, 0.6, 0.04
@@ -37,6 +38,9 @@ for i, frame in enumerate(images, 1):
     if frame_details is None:
         continue
     R, t = frame_details.R, frame_details.t
+    
+    theta = np.rad2deg(-np.arcsin(-R[2,0]))
+    print(f"theta: {theta}")
     # print(f"R{i}: \n{R}\n")
     print(f"t{i}: {t.reshape(3)}\n")
     plot_position.plot_position_heading(R, t)

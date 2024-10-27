@@ -11,11 +11,11 @@ import VCS
 DRONE_CAM = True
 
 # IP address of the connected android device
-VIDEO_SOURCE = "10.0.0.4"
-# VIDEO_SOURCE = "10.0.0.2"
+# VIDEO_SOURCE = "192.168.137.94"
+VIDEO_SOURCE = "10.0.0.6"
 
 # Save folder
-SAVE_PATH = 'Testing Images/5'
+SAVE_PATH = 'Testing Images/6'
 
 # Maximum number of images the program will take.
 MAX_IMAGES = 15

@@ -12,19 +12,20 @@ import Utils
 ####################### Input parameters #######################
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_MAP = 'Testing Images/7/map.npy'
+PATH_MAP = 'Testing Images/5/map.npy'
 
 # IP address of the connected android device.
-VIDEO_SOURCE = "10.0.0.4"
+# VIDEO_SOURCE = "192.168.137.94"
+VIDEO_SOURCE = "10.0.0.6"
 
 # take off and control the drone?
 TAKE_OFF = True
 
 # Time to wait between 2 consecutive control iterations (in miliseconds)
-WAIT_TIME = 50
+WAIT_TIME = 100
 
 # acceptable distace to the target.
-OK_ERROR = 0.25
+OK_ERROR = 0.2
 
 # Scale the image for faster localization.
 SCALE_READ = 0.8
@@ -39,12 +40,13 @@ QUIT_KEY = 'q'
 
 
 targets = [
-    [-1,  0, -1],
-    [0,  0, 0],
-    # [0,  0,-3],
-    # [3,  0,-3],
-    # [3,  0, 0],
-    # [0,  0, 0],
+    [ 0.0,  0.5, -0.5],
+    [-1.0,  0.5, -0.5],
+    # [ 0.0,  1.0, -0.5],
+    # [-3.0,  1.0, -0.5],
+    # [ 0.0,  1.0, -0.5],
+    # [ 0.0,  0.0,  1.0],
+    # [ 0.0,  2.0,  1.0],
 ]
 
 ####################### Initialization #######################
@@ -59,7 +61,7 @@ slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), map_3d_path=P
 pos_plotter = Utils.PlotPosition()
 
 control = Control()
-control.setLookDirection(Position([0, 0, 1e1]))
+control.setLookDirection(Position([0, 0, 10]))
     
 if TAKE_OFF:
     Utils.take_off(drone)
@@ -90,7 +92,7 @@ for target in targets:
         # Send control command.
         if TAKE_OFF:
             LR,DU,BF,RCW = control.getRCVector(curr_pos)
-            print(f'rc {RCW:.2f} {DU:.2f} {LR:.2f} {BF:.2f}')
+            print(f'LR: {LR:.3f}\t DU: {DU:.3f}\t BF: {BF:.3f}\t RCW: {RCW:.3f}')
             print(drone.move(RCW, DU, LR, BF, get_result=True))
                 
         # Display frame.
@@ -109,8 +111,8 @@ localizer.release()
 
 if TAKE_OFF:
     # return the control to the remote controller.
-    print(f"stop: {drone.move(0, 0, 0, 0, get_result=True)}")
-    print(f"diable control: {drone.disableControl(get_result=True)}")
+    print(f"stop the drone: {drone.move(0, 0, 0, 0, get_result=True)}")
+    print(f"disable control: {drone.disableControl(get_result=True)}")
 
 if DISPLAY_IMAGE:
     cv2.destroyAllWindows()

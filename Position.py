@@ -61,7 +61,7 @@ class Position:
         self._t = t % 180
     
     def __repr__(self) -> str:
-        return f"x:{self._x}\t y:{self._y}\t z:{self._z}\t t:{self._t}"
+        return f"x: {self._x:.3f}\t y: {self._y:.3f}\t z: {self._z:.3f}\t theta: {self._t:.3f}"
     
     def __add__(self, other):
         x = self._x + other.getX()

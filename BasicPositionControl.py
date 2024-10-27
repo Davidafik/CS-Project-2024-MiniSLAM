@@ -10,9 +10,9 @@ class BasicPositionControl (PositionControl):
     """
     def __init__(
             self, 
-            RClimit: np.ndarray = np.array([0.02, 0.02, 0.02, 0.02]),
-            errWeights: np.ndarray = np.array([0.05, 0., 0.05, 0.1]),
-            errMargin: np.ndarray = np.array([1.0, 1.0, 1.0, 2.0])
+            RClimit: np.ndarray = np.array([0.015, 0.015, 0.015, 0.2]),
+            errWeights: np.ndarray = np.array([0.06, 0.06, 0.06, 0.003]),
+            errMargin: np.ndarray = np.array([0.05, 0.05, 0.05, 15.0])
         ) -> None:
         """
         initialize BasicPositionControl parameters.
@@ -45,18 +45,20 @@ class BasicPositionControl (PositionControl):
             self._error = np.inf
             return np.zeros(4)
         
-        if currPos == self._prevPos:
-            return np.zeros(4)
-        self._prevPos = currPos
-        
         # get the translation and angle error.
         errorVec = self._calcErrorVec(currPos) # (LR, DU, BF, RCW)
 
         # 
         errorVec = self.smoothError(errorVec)
-
+        
         # limit the size RC vector
-        return errorVec.clip(-self._RClimit, self._RClimit)
+        errorVec = errorVec.clip(-self._RClimit, self._RClimit)
+
+        if currPos == self._prevPos:
+            errorVec /= 5
+        self._prevPos = currPos
+
+        return errorVec
     
     def smoothError(self, err: np.ndarray):
         """
@@ -70,3 +72,12 @@ class BasicPositionControl (PositionControl):
         """
         cond = np.abs(err) < self._errMargin
         return self._errGrad * (cond * err**3 / (3 * self._errMargin**2) + np.logical_not(cond) * (err - (2 * np.sign(err) * self._errMargin / 3)))
+
+
+# ctrl = BasicPositionControl(RClimit = np.array([0.00, 0.00, 0.00, 360]),
+#             errWeights = np.array([0.0, 0.0, 0.0, 1]),
+#             errMargin = np.array([0.001, 0.001, 0.001, 0.001]))
+
+# ctrl.setTarget(Position([0,0,0]))
+# ctrl.setLookDirection(Position([0, 0, 1]))
+# print(ctrl.getRCVector(Position([1,0,0], 0)))

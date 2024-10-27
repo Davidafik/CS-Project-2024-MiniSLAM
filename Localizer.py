@@ -47,8 +47,8 @@ class Localizer:
             frame = cv2.resize(frame, dsize = None,
                                 fx = self.scale_image,
                                 fy = self.scale_image)
-            cv2.imshow("", frame)
-            cv2.waitKey(10)
+            # cv2.imshow("", frame)
+            # cv2.waitKey(10)
                         
             frame_details = self._miniSlam.process_frame(frame)
                         
@@ -56,6 +56,9 @@ class Localizer:
                 R, t = frame_details.R, frame_details.t
                 
                 c = (-R.T @ t).reshape(3)
+                
+                # flip y axis so it points up and not down.
+                c[1] *= -1
                 
                 if self._position is not None and np.linalg.norm(c - self._position.getLocVec()) > 6:
                     self._position = None
@@ -109,18 +112,19 @@ if __name__ == "__main__":
     ####################### Input Parameters #######################
 
     PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-    PATH_MAP = 'Testing Images/5/map.npy'
+    PATH_MAP = 'Testing Images/6/map.npy'
 
     # True if you taking the images with the mini 3 pro.
     DRONE_CAM = True
 
     # IP address of the connected android device / cv2 video source.
-    VIDEO_SOURCE = "10.0.0.4"
+    # VIDEO_SOURCE = "192.168.137.94"
+    VIDEO_SOURCE = "10.0.0.6"
 
     # Time to wait between 2 consecutive frame savings (in miliseconds)
     WAIT_TIME = 100
 
-    SCALE_READ = 0.9
+    SCALE_READ = 0.8
 
     DISPLAY_IMAGE = False
 

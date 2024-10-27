@@ -217,7 +217,7 @@ class MiniSLAM:
                 rvec=rvec_prev,                   # Initial guess for rotation - the previous frame's rotation.
                 tvec=tvec_prev,                   # Initial guess for translation - the previous frame's translation.
                 useExtrinsicGuess=rvec_prev is not None,           # Use the given guess.
-                iterationsCount=30                # Number of RANSAC iterations.
+                # iterationsCount=30                # Number of RANSAC iterations.
             )
         
         except ValueError:

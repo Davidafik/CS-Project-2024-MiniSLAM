@@ -54,9 +54,9 @@ class PositionControl:
         # the error in the angle of the drone
         if self._lookDir is not None:
             # make the drone look at the a certain point
-            lookVec = self._lookDir.getPosVec() - currPos.getPosVec()
+            lookVec = self._lookDir.getLocVec() - currPos.getLocVec()
             desAngle = np.rad2deg(np.arctan2(lookVec[0], lookVec[2]))
-            lookVec[3] = desAngle - currPos.getT()
+            errorVec[3] = desAngle - currPos.getT()
         
         return errorVec
 
