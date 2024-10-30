@@ -52,7 +52,13 @@ def put_text(frame, count, quit_key = 'q'):
     font = cv2.FONT_HERSHEY_COMPLEX
     
     text = f"{count} frames read"
-    frame = cv2.putText(frame, text, (5, 30), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
+    frame = cv2.putText(frame, text, (5, 30), font, 1, (50, 50, 255), 1, cv2.LINE_AA)
+    
+    # draw a cross in the middle of the image.
+    height = frame.shape[0]
+    width = frame.shape[1]
+    frame = cv2.line(frame, [0,height//2], [width, height//2], [0,255,255], 1)
+    frame = cv2.line(frame, [width//2,0], [width//2, height], [0,255,255], 1)
     
     text = f"Press '{quit_key}' to quit"
     return cv2.putText(frame, text, (5, 60), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
@@ -145,9 +151,9 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
     axis_min = np.min(points, axis = 0)
 
     if cam_t is not None:
-        x = -cam_t[:, 0]
-        y = -cam_t[:, 1]
-        z = -cam_t[:, 2]
+        x = cam_t[:, 0]
+        y = cam_t[:, 1]
+        z = cam_t[:, 2]
         ax.plot(x, y, z, marker='s', linestyle='-', color='r')
 
         # ax.scatter(cam_t[:, 0], -cam_t[:, 1], cam_t[:, 2], s = 2, marker="s")
@@ -197,7 +203,8 @@ class PlotPosition:
         
         # FIX:
         # Plot the heading using the rotation matrix
-        yaw = -np.arcsin(-R[2,0])
+        # yaw = -np.arcsin(-R[2,0])
+        yaw = np.arctan2(R[2,0], R[0,0])
         heading_x = np.sin(yaw)
         heading_z = np.cos(yaw)
         # self.ax.text(x+0.1, z, s=f"{180*yaw/np.pi:.1f}", color='red')

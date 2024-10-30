@@ -68,16 +68,16 @@ class Localizer:
                 
                 # Calculate the angle on XZ plan - out theta
                 # theta = -np.arctan2(R[0,0], R[2,0])
-                theta = np.rad2deg(-np.arcsin(-R[2,0]))
+                theta = np.rad2deg(np.arctan2(R[2,0], R[0,0]))
                 
                 pos = Position(c, theta)
                 if self._position is not None:
                     dt = (time_frame - self._time).total_seconds()
 
-                    if self._velocity is not None:
-                        pos = pos * 0.8 + (self._position + self._velocity * dt) * 0.2
+                    # if self._velocity is not None:
+                    #     pos = pos * 0.75 + (self._position + self._velocity * dt) * 0.35
                         
-                    self._velocity = (pos - self._position) / dt
+                    # self._velocity = (pos - self._position) / dt
                     
                     print(f"Localization time: {dt} sec.")
                     
@@ -112,19 +112,19 @@ if __name__ == "__main__":
     ####################### Input Parameters #######################
 
     PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-    PATH_MAP = 'Testing Images/6/map.npy'
+    PATH_MAP = 'Testing Images/8/map.npy'
 
     # True if you taking the images with the mini 3 pro.
     DRONE_CAM = True
 
     # IP address of the connected android device / cv2 video source.
     # VIDEO_SOURCE = "192.168.137.94"
-    VIDEO_SOURCE = "10.0.0.6"
+    VIDEO_SOURCE = "10.0.0.5"
 
     # Time to wait between 2 consecutive frame savings (in miliseconds)
     WAIT_TIME = 100
 
-    SCALE_READ = 0.8
+    SCALE_READ = 1
 
     DISPLAY_IMAGE = False
 

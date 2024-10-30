@@ -10,9 +10,9 @@ class BasicPositionControl (PositionControl):
     """
     def __init__(
             self, 
-            RClimit: np.ndarray = np.array([0.015, 0.015, 0.015, 0.2]),
-            errWeights: np.ndarray = np.array([0.06, 0.06, 0.06, 0.003]),
-            errMargin: np.ndarray = np.array([0.05, 0.05, 0.05, 15.0])
+            RClimit: np.ndarray = np.array([0.01, 0.01, 0.01, 0.1]),
+            errWeights: np.ndarray = np.array([0.015, 0.02, 0.02, 0.002]),
+            errMargin: np.ndarray = np.array([0.07, 0.07, 0.07, 20.0])
         ) -> None:
         """
         initialize BasicPositionControl parameters.

@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import keyboard
 from OpenDJI import OpenDJI
 from MiniSLAM import MiniSLAM
@@ -12,11 +13,11 @@ import Utils
 ####################### Input parameters #######################
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_MAP = 'Testing Images/5/map.npy'
+PATH_MAP = 'Testing Images/8/map.npy'
 
 # IP address of the connected android device.
 # VIDEO_SOURCE = "192.168.137.94"
-VIDEO_SOURCE = "10.0.0.6"
+VIDEO_SOURCE = "10.0.0.5"
 
 # take off and control the drone?
 TAKE_OFF = True
@@ -25,7 +26,7 @@ TAKE_OFF = True
 WAIT_TIME = 100
 
 # acceptable distace to the target.
-OK_ERROR = 0.2
+OK_ERROR = 0.3
 
 # Scale the image for faster localization.
 SCALE_READ = 0.8
@@ -40,28 +41,30 @@ QUIT_KEY = 'q'
 
 
 targets = [
-    [ 0.0,  0.5, -0.5],
-    [-1.0,  0.5, -0.5],
-    # [ 0.0,  1.0, -0.5],
-    # [-3.0,  1.0, -0.5],
-    # [ 0.0,  1.0, -0.5],
-    # [ 0.0,  0.0,  1.0],
-    # [ 0.0,  2.0,  1.0],
+    [[ 1.0,  0.0,  0.0],   0],
+    [[ 4.0,  0.0, -0.5], -40],
+    [[ 2.6,  0.0,  2.5], -40],
+    [[ 3.5,  0.0,  0.0], -40],
+    [[ 1.0,  0.0,  0.5],   0],
+    # [[ 2.5,  0.0,  2.9], -90],
+    # [[ 2.5,  0.0,  2.0], -60],
+    # [[ 2.5,  0.0,  0.0], -30],
+    # [[ 0.0,  0.0,  0.0],  20],
 ]
 
 ####################### Initialization #######################
 
-drone = OpenDJI(VIDEO_SOURCE)
-        
 calib = Calibration(PATH_CALIB)
 
 slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), map_3d_path=PATH_MAP, add_new_pts=False)
 # Utils.draw_3d_cloud(slam._map3d.pts)
 
+drone = OpenDJI(VIDEO_SOURCE)
+        
 pos_plotter = Utils.PlotPosition()
 
 control = Control()
-control.setLookDirection(Position([0, 0, 10]))
+# control.setLookDirection(Position([0, 0, 10]))
     
 if TAKE_OFF:
     Utils.take_off(drone)
@@ -78,7 +81,7 @@ cv2.waitKey(1000)
 # move the drone along the path.
 for target in targets:
     # set the next point in the path as the new target.
-    control.setTarget(Position(target))
+    control.setTarget(Position(target[0], target[1]))
 
     # keep advancing toward the target until you get small enough error.
     while control.getError() > OK_ERROR and not keyboard.is_pressed(QUIT_KEY):
@@ -112,6 +115,7 @@ localizer.release()
 if TAKE_OFF:
     # return the control to the remote controller.
     print(f"stop the drone: {drone.move(0, 0, 0, 0, get_result=True)}")
+    print(f"land {drone.land(get_result=True)}")
     print(f"disable control: {drone.disableControl(get_result=True)}")
 
 if DISPLAY_IMAGE:

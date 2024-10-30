@@ -7,12 +7,12 @@ import Utils
 from Position import Position
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/6'
+PATH_IMAGES = 'Testing Images/8'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
 
-IMAGE_SCALE = 0.8
+IMAGE_SCALE = 1
 
 # outliers removing params:
 min_neighbors, neighbor_dist, min_dist = 10, 0.6, 0.04
@@ -39,7 +39,7 @@ for i, frame in enumerate(images, 1):
         continue
     R, t = frame_details.R, frame_details.t
     
-    theta = np.rad2deg(-np.arcsin(-R[2,0]))
+    theta = np.rad2deg(np.arctan2(R[2,0], R[0,0]))
     print(f"theta: {theta}")
     # print(f"R{i}: \n{R}\n")
     print(f"t{i}: {t.reshape(3)}\n")
@@ -60,6 +60,9 @@ for i, frame in enumerate(images, 1):
 print(f"***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
 slam.remove_outliers(min_neighbors, neighbor_dist, 0.1)
 print(f"****num points after: {len(slam._map3d.pts)}\n")
+
+# slam._map3d.rotate_XZ(-15)
+slam._map3d.rotate_YZ(-10)
 
 slam.save(f"{PATH_IMAGES}/map.npy")
 # mapping.load(f"{PATH_IMAGES}/map.npy")

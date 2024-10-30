@@ -3,6 +3,7 @@ import datetime
 from os import mkdir, path
 from OpenDJI import OpenDJI
 import VCS
+import Utils
 
 
 ####################### Input parameters #######################
@@ -12,16 +13,16 @@ DRONE_CAM = True
 
 # IP address of the connected android device
 # VIDEO_SOURCE = "192.168.137.94"
-VIDEO_SOURCE = "10.0.0.6"
+VIDEO_SOURCE = "10.0.0.5"
 
 # Save folder
 SAVE_PATH = 'Testing Images/6'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 15
+MAX_IMAGES = 20
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 3000
+WAIT_TIME = 7000
 
 # Scale the image (for display only):
 SCALE_FACTOR = 0.5
@@ -33,22 +34,6 @@ MIRROR_DISPLAY = False
 QUIT_KEY = 'q'
 
 ################################################################
-
-def put_text(frame, count):
-    font = cv2.FONT_HERSHEY_COMPLEX
-    
-    text = f"{count} frames saved"
-    frame = cv2.putText(frame, text, (5, 30), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
-    
-    # draw a cross in the middle of the image.
-    height = frame.shape[0]
-    width = frame.shape[1]
-    frame = cv2.line(frame, [0,height//2], [width, height//2], [0,255,255], 1)
-    frame = cv2.line(frame, [width//2,0], [width//2, height], [0,255,255], 1)
-
-    text = f"Press '{QUIT_KEY}' to quit"
-    return cv2.putText(frame, text, (5, 60), font, 1, (153, 153, 0), 1, cv2.LINE_AA)
-    
 
 
 # Create the folder if it does not exist.
@@ -96,7 +81,7 @@ while count < MAX_IMAGES and cv2.waitKey(20) != ord(QUIT_KEY):
     frame = cv2.resize(frame, dsize = None, fx = SCALE_FACTOR, fy = SCALE_FACTOR)
     if MIRROR_DISPLAY:
         frame = cv2.flip(frame, 1)
-    frame = put_text(frame, count)
+    frame = Utils.put_text(frame, count)
     cv2.imshow("frame", frame)
     
 cv2.destroyAllWindows()

@@ -56,4 +56,34 @@ class Map3D:
         self.pts = self.pts[pts_idxs]
         self.dsc = self.dsc[pts_idxs]
         
-    
+    def rotate_XZ(self, deg : float) -> np.ndarray:
+        """
+        rotate map in xz plane
+
+        Args:
+            deg (float): the rotation angle, in degrees.
+
+        Returns:
+        """
+        rad = np.deg2rad(deg)
+        roration_mat = np.array([[ np.cos(rad), 0, np.sin(rad)],
+                                 [ 0,           1, 0          ],
+                                 [-np.sin(rad), 0, np.cos(rad)]])
+        self.pts = self.pts @ roration_mat
+        
+        
+    def rotate_YZ(self, deg : float) -> np.ndarray:
+        """
+        rotate map in yz plane
+
+        Args:
+            deg (float): the rotation angle, in degrees.
+
+        Returns:
+        """
+        rad = np.deg2rad(deg)
+        roration_mat = np.array([[ 1,  0          , 0          ],
+                                 [ 0,  np.cos(rad), np.sin(rad)],
+                                 [ 0, -np.sin(rad), np.cos(rad)]])
+        self.pts = self.pts @ roration_mat
+        

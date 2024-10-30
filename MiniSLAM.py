@@ -12,8 +12,8 @@ class MiniSLAM:
         
         self._feature_detector = cv2.SIFT_create(nfeatures=3000,
                                                  nOctaveLayers=2,
-                                                 contrastThreshold=0.05,
-                                                 edgeThreshold=8,
+                                                 contrastThreshold=0.04,
+                                                 edgeThreshold=9,
                                                  sigma=1.6)
         
         self._matcher = cv2.BFMatcher()
