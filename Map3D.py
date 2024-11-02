@@ -3,7 +3,7 @@ from sklearn.metrics import pairwise_distances
 
 
 class Map3D:
-    def __init__(self, numpyFileName: str = None) -> None:
+    def __init__(self, emptyDsc: np.ndarray, numpyFileName: str = None) -> None:
         # Open file and extract the data
         if numpyFileName is not None:
             f = open(numpyFileName, 'rb')
@@ -11,7 +11,7 @@ class Map3D:
             self.dsc = np.load(f)
         else:
             self.pts = np.empty((0, 3), np.float32)
-            self.dsc = np.empty((0, 128), np.float32)
+            self.dsc = emptyDsc
             
     def load(self, numpyFileName: str):
         with open(numpyFileName, 'rb') as f:

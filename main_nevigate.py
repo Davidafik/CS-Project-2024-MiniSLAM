@@ -7,6 +7,7 @@ from Calibration import Calibration
 from Localizer import Localizer
 from BasicPositionControl import BasicPositionControl as Control
 from Position import Position
+import FeatureDetector
 import Utils
 
 
@@ -56,7 +57,9 @@ targets = [
 
 calib = Calibration(PATH_CALIB)
 
-slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), map_3d_path=PATH_MAP, add_new_pts=False)
+feature_detector = FeatureDetector.FAST_SIFT(threshold=35, max_features=4000, nOctaveLayers=3, sigma=1.8)
+
+slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), feature_detector=feature_detector, map_3d_path=PATH_MAP, add_new_pts=False)
 # Utils.draw_3d_cloud(slam._map3d.pts)
 
 drone = OpenDJI(VIDEO_SOURCE)
