@@ -154,7 +154,7 @@ def draw_3d_cloud(points, cam_t : np.ndarray = None):
         x = cam_t[:, 0]
         y = cam_t[:, 1]
         z = cam_t[:, 2]
-        ax.plot(x, y, z, marker='s', linestyle='-', color='r')
+        ax.plot(x, y, z, marker='s', linestyle='-', color='r', markersize=3)
 
         # ax.scatter(cam_t[:, 0], -cam_t[:, 1], cam_t[:, 2], s = 2, marker="s")
         axis_max = np.max(np.vstack((np.max(-cam_t, axis = 0), axis_max)), axis=0)

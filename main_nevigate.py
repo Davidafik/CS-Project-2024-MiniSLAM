@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import datetime
 import keyboard
 from OpenDJI import OpenDJI
 from MiniSLAM import MiniSLAM
@@ -14,50 +15,43 @@ import Utils
 ####################### Input parameters #######################
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_MAP = 'Testing Images/8/map.npy'
+PATH_MAP = 'Testing Images/3/map.npy'
 
 # IP address of the connected android device.
-# VIDEO_SOURCE = "192.168.137.94"
-VIDEO_SOURCE = "10.0.0.5"
+VIDEO_SOURCE = "10.0.0.3"
 
 # take off and control the drone?
 TAKE_OFF = True
 
 # Time to wait between 2 consecutive control iterations (in miliseconds)
-WAIT_TIME = 100
+WAIT_TIME = 50
 
 # acceptable distace to the target.
-OK_ERROR = 0.3
+OK_ERROR = 0.2
 
 # Scale the image for faster localization.
-SCALE_READ = 0.8
+SCALE_READ = 1
 
-DISPLAY_IMAGE = False
+DISPLAY_IMAGE = True
 
 # Scale the image for display:
 SCALE_DISPLAY = 0.5
 
-# pressing this key will close the program.
-QUIT_KEY = 'q'
-
-
 targets = [
-    [[ 1.0,  0.0,  0.0],   0],
-    [[ 4.0,  0.0, -0.5], -40],
-    [[ 2.6,  0.0,  2.5], -40],
-    [[ 3.5,  0.0,  0.0], -40],
-    [[ 1.0,  0.0,  0.5],   0],
-    # [[ 2.5,  0.0,  2.9], -90],
-    # [[ 2.5,  0.0,  2.0], -60],
-    # [[ 2.5,  0.0,  0.0], -30],
-    # [[ 0.0,  0.0,  0.0],  20],
+    [[ 0.0,  0.0,  0.0],   0],
+    [[-2.0,  0.0,  0.0],  10],
+    [[-2.0,  0.0,  1.0],  30],
+    [[-2.0,  0.0,  2.0],  60],
+    [[-2.0,  0.0,  3.0],  90],
+    [[-1.0,  0.0,  3.0],  90],
+    
 ]
 
 ####################### Initialization #######################
 
 calib = Calibration(PATH_CALIB)
 
-feature_detector = FeatureDetector.FAST_SIFT(threshold=35, max_features=4000, nOctaveLayers=3, sigma=1.8)
+feature_detector = FeatureDetector.FAST_SIFT(threshold=30, max_features=700, nOctaveLayers=5, sigma=1.7)
 
 slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), feature_detector=feature_detector, map_3d_path=PATH_MAP, add_new_pts=False)
 # Utils.draw_3d_cloud(slam._map3d.pts)
@@ -74,7 +68,7 @@ if TAKE_OFF:
     cv2.waitKey(3000)
     Utils.enable_control(drone)
 
-localizer = Localizer(slam, drone, scale_image=SCALE_READ)
+localizer = Localizer(slam, scale_image=SCALE_READ)
 cv2.waitKey(1000)
 
     
@@ -85,14 +79,22 @@ cv2.waitKey(1000)
 for target in targets:
     # set the next point in the path as the new target.
     control.setTarget(Position(target[0], target[1]))
+    print(f"next target: {target}")
 
     # keep advancing toward the target until you get small enough error.
-    while control.getError() > OK_ERROR and not keyboard.is_pressed(QUIT_KEY):
-        print("error: ", control.getError())
+    while control.getError() > OK_ERROR and not keyboard.is_pressed('q'):
+        ret, frame = drone.read()
+        if not ret:
+            print ('Error retriving video stream')
+            cv2.waitKey(WAIT_TIME)
+            continue
+        time = datetime.datetime.now()
+        curr_pos = localizer.getPosition(frame)
+        print(f"Total localization time: {(datetime.datetime.now() - time).total_seconds()} sec.")
         
-        curr_pos = localizer.getPosition()
-        print(curr_pos)
-        
+
+        print(f"dist to target: {control.getError()}")
+        print(f"curr position: {curr_pos}")
         pos_plotter.plot_position_heading_new(curr_pos)
 
         # Send control command.
@@ -103,17 +105,13 @@ for target in targets:
                 
         # Display frame.
         if DISPLAY_IMAGE:
-            results, frame = drone.read()
-            if not results:
-                continue
             frame = cv2.resize(frame, dsize = None, fx = SCALE_DISPLAY, fy = SCALE_DISPLAY)
-            frame = Utils.put_text(frame, 0, QUIT_KEY)
             cv2.imshow("frame", frame)
         
         cv2.waitKey(WAIT_TIME)
         print("*"*70)
-
-localizer.release()
+    cv2.waitKey(200)
+    
 
 if TAKE_OFF:
     # return the control to the remote controller.

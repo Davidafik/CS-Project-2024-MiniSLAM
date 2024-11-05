@@ -13,16 +13,16 @@ DRONE_CAM = True
 
 # IP address of the connected android device
 # VIDEO_SOURCE = "192.168.137.94"
-VIDEO_SOURCE = "10.0.0.5"
+VIDEO_SOURCE = "10.0.0.3"
 
 # Save folder
-SAVE_PATH = 'Testing Images/6'
+SAVE_PATH = 'Testing Images/3'
 
 # Maximum number of images the program will take.
-MAX_IMAGES = 20
+MAX_IMAGES = 1000
 
 # Time to wait between 2 consecutive frame savings (in miliseconds)
-WAIT_TIME = 7000
+WAIT_TIME = 300
 
 # Scale the image (for display only):
 SCALE_FACTOR = 0.5

@@ -1,14 +1,16 @@
-import cv2
 import numpy as np
 from MiniSLAM import MiniSLAM
 from Calibration import Calibration
 from FrameDetails import FrameDetails
+from Localizer import Localizer
+from Position import Position
 import FeatureDetector
 import Utils
-from Position import Position
+np.set_printoptions(precision=3, suppress=True)
+
 
 PATH_CALIB = "Camera Calibration/CalibMini3Pro/Calibration.npy"
-PATH_IMAGES = 'Testing Images/8'
+PATH_IMAGES = 'Testing Images/3'
 
 # PATH_CALIB = "Camera Calibration/CalibDavidLaptop/Calibration.npy"
 # PATH_IMAGES = "Testing Images/1"
@@ -18,35 +20,30 @@ IMAGE_SCALE = 1
 # outliers removing params:
 min_neighbors, neighbor_dist, min_dist = 10, 0.6, 0.04
 
-feature_detector = FeatureDetector.FAST_SIFT(threshold=45, max_features=4000, nOctaveLayers=3, sigma=1.8)
-
-np.set_printoptions(precision=3, suppress=True)
+feature_detector = FeatureDetector.FAST_SIFT(threshold=35, max_features=0, nOctaveLayers=4, sigma=1.3)
 
 calib = Calibration(PATH_CALIB)
-slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), feature_detector=feature_detector, add_new_pts=True, max_std_new_pts=5)
-slam.load(f"{PATH_IMAGES}/map.npy")
 
-images = Utils.read_images(PATH_IMAGES, IMAGE_SCALE)
-Rs, ts = np.empty((0,3,3), float), np.empty((0,3), float)
+slam = MiniSLAM(calib.getIntrinsicMatrix(), calib.getDistCoeffs(), feature_detector=feature_detector, add_new_pts=True, max_std_new_pts=5)
+# slam.load(f"{PATH_IMAGES}/map.npy")
+
+localizer = Localizer(slam, scale_image=IMAGE_SCALE, max_dist_from_prev = 20)
 
 plot_position = Utils.PlotPosition()
 
+images = Utils.read_images(PATH_IMAGES, IMAGE_SCALE)
+
+ts = np.empty((0,3), float)
+
 for i, frame in enumerate(images, 1):
     print(f"\n{i}:")
-    frame_details = slam.process_frame(frame)
-    if frame_details is None:
-        continue
-    # Utils.drawKeyPoints(frame, frame_details.kp)
-    R, t = frame_details.R, frame_details.t
+    curr_pos = localizer.getPosition(frame)
+    print(curr_pos)
     
-    # theta = np.rad2deg(np.arctan2(R[2,0], R[0,0]))
-    # print(f"theta: {theta}")
-    # print(f"R{i}: \n{R}\n")
-    print(f"t{i}: {t.reshape(3)}")
-    plot_position.plot_position_heading(R, t)
+    if curr_pos is not None:
+        plot_position.plot_position_heading_new(curr_pos)
+        ts = np.vstack((ts, curr_pos.getLocVec()))
     
-    # Rs = np.vstack((Rs, R.reshape((1,3,3))))
-    ts = np.vstack((ts, t.T))
     # if i%4 == 0:
     #     print(f"\n***removing outliers. \n****num points before: {len(slam._map3d.pts)}")
     #     slam.remove_outliers(min_neighbors, neighbor_dist, min_dist)
@@ -61,17 +58,14 @@ print(f"****num points after: {len(slam._map3d.pts)}\n")
 # slam._map3d.rotate_YZ(-10)
 
 slam.save(f"{PATH_IMAGES}/map.npy")
-# mapping.load(f"{PATH_IMAGES}/map.npy")
-
 
 # cv2.destroyAllWindows()
 
 print("*"*50)
-print(f"3d_pts shape: {slam._map3d.pts.shape}\n")
-# print(f"ts: \n{ts}, \nshape {ts.shape}\n")
-# print(f"Rs: {Rs}, \nshape {Rs.shape}\n")
 
-Utils.draw_3d_cloud(slam._map3d.pts)
-# Utils.draw_3d_cloud(slam._map3d.pts, ts)
+# Utils.draw_3d_cloud(slam._map3d.pts)
+
+ts[:, 1] *= -1
+Utils.draw_3d_cloud(slam._map3d.pts, ts)
 
 

@@ -77,6 +77,7 @@ class FAST_SIFT(FeatureDetector):
         self._max_features = max_features
 
     def detectAndCompute(self, image: np.ndarray):
+        
         keypoints = self._fast.detect(image, None)
 
         # Limit the number of FAST keypoints to `self._max_features`
